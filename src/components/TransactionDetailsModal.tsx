@@ -70,7 +70,7 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
               <button onClick={() => setShowConfirmDelete(true)} className="p-2 text-neutral-500 hover:text-red-500 transition-colors bg-neutral-800/50 rounded-full active:scale-90">
                 <Trash2 size={18} />
               </button>
-              <button onClick={onClose} className="p-2 text-neutral-500 hover:text-white transition-colors bg-neutral-800/50 rounded-full active:scale-90">
+              <button onClick={() => onClose()} className="p-2 text-neutral-500 hover:text-white transition-colors bg-neutral-800/50 rounded-full active:scale-90">
                 <X size={18} />
               </button>
             </div>
