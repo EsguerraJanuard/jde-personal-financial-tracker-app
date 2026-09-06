@@ -7,7 +7,7 @@ export async function processTransaction(payload: any) {
   const { type, amount, wallet_id, allocation_id, person_name, lend_sources, description, is_direct } = payload;
   
   let dbType = type;
-  if (type === 'LEND') dbType = 'TRANSFER';
+  if (type === 'LEND' || type === 'BORROW' || type === 'TRANSFER') dbType = 'TRANSFER';
   if (type === 'INCOME_DIRECT') dbType = 'MANUAL_ADJUSTMENT';
   if (type === 'INCOME_SPLIT') dbType = 'INCOME_SPLIT';
 
@@ -138,6 +138,22 @@ export async function processTransaction(payload: any) {
      if (offsetAlloc) {
         await supabase.from('allocation_ledger').insert([
           { transaction_id: txId, allocation_id: offsetAlloc.id, amount: -amount }
+        ]);
+     }
+  }
+
+  // INTERNAL TRANSFER (Wallet <-> Wallet OR Envelope <-> Envelope)
+  else if (type === 'TRANSFER') {
+     const { transfer_type, from_id, to_id } = payload;
+     if (transfer_type === 'WALLET') {
+        await supabase.from('wallet_ledger').insert([
+          { transaction_id: txId, wallet_id: from_id, amount: -amount },
+          { transaction_id: txId, wallet_id: to_id, amount: amount }
+        ]);
+     } else if (transfer_type === 'ENVELOPE') {
+        await supabase.from('allocation_ledger').insert([
+          { transaction_id: txId, allocation_id: from_id, amount: -amount },
+          { transaction_id: txId, allocation_id: to_id, amount: amount }
         ]);
      }
   }

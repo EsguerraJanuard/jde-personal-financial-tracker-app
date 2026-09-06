@@ -28,6 +28,11 @@ export default function TransactionForm({ wallets, allocations }: any) {
   const [personName, setPersonName] = useState('');
   const [lendSources, setLendSources] = useState([{ id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]);
 
+  // Transfer Specific
+  const [transferType, setTransferType] = useState<'WALLET' | 'ENVELOPE'>('WALLET');
+  const [transferToWalletId, setTransferToWalletId] = useState(wallets[1]?.id || wallets[0]?.id || '');
+  const [transferToAllocId, setTransferToAllocId] = useState(allocations[1]?.id || allocations[0]?.id || '');
+
   const remainingLend = Number(amount) - lendSources.reduce((sum, s) => sum + Number(s.amount || 0), 0);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -57,6 +62,15 @@ export default function TransactionForm({ wallets, allocations }: any) {
       }
     }
 
+    if (tab === 'TRANSFER') {
+      if (transferType === 'WALLET' && walletId === transferToWalletId) {
+        newErrors.transfer = "Source and destination wallets must be different";
+      }
+      if (transferType === 'ENVELOPE' && allocationId === transferToAllocId) {
+        newErrors.transfer = "Source and destination envelopes must be different";
+      }
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -83,7 +97,10 @@ export default function TransactionForm({ wallets, allocations }: any) {
         person_name: personName.trim(),
         lend_sources: tab === 'LEND' ? lendSources.map(s => ({ allocation_id: s.allocation_id, amount: Number(s.amount) })) : [],
         description,
-        is_direct: isDirect
+        is_direct: isDirect,
+        transfer_type: tab === 'TRANSFER' ? transferType : undefined,
+        from_id: tab === 'TRANSFER' ? (transferType === 'WALLET' ? walletId : allocationId) : undefined,
+        to_id: tab === 'TRANSFER' ? (transferType === 'WALLET' ? transferToWalletId : transferToAllocId) : undefined
       });
       
       if (res.success) {
@@ -150,8 +167,8 @@ export default function TransactionForm({ wallets, allocations }: any) {
           </div>
         </div>
 
-        {/* FROM / TO WALLET — hidden for BORROW */}
-        {tab !== 'BORROW' && (
+        {/* FROM / TO WALLET — hidden for BORROW & TRANSFER */}
+        {tab !== 'BORROW' && tab !== 'TRANSFER' && (
           <div className="flex flex-col gap-2">
             <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">
               {tab === 'INCOME' ? 'To Wallet' : 'From Wallet'}
@@ -276,6 +293,54 @@ export default function TransactionForm({ wallets, allocations }: any) {
           </div>
         )}
 
+        {/* TRANSFER TAB */}
+        {tab === 'TRANSFER' && (
+          <div className="flex flex-col gap-4">
+            <div className="flex gap-2 p-1 bg-neutral-900 rounded-xl">
+               <button type="button" onClick={() => setTransferType('WALLET')} className={`flex-1 py-2.5 rounded-lg text-xs font-semibold ${transferType === 'WALLET' ? 'bg-neutral-700 text-white' : 'text-neutral-500 hover:text-neutral-300'}`}>Wallet to Wallet</button>
+               <button type="button" onClick={() => setTransferType('ENVELOPE')} className={`flex-1 py-2.5 rounded-lg text-xs font-semibold ${transferType === 'ENVELOPE' ? 'bg-neutral-700 text-white' : 'text-neutral-500 hover:text-neutral-300'}`}>Envelope to Envelope</button>
+            </div>
+
+            {errors.transfer && (
+              <div className="text-[10px] text-red-400 font-medium flex items-center gap-1">
+                <AlertCircle size={10} /> {errors.transfer}
+              </div>
+            )}
+
+            {transferType === 'WALLET' ? (
+              <>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">From Wallet</label>
+                  <Select value={walletId} onChange={(e: any) => { setWalletId(e.target.value); setErrors(prev => ({...prev, transfer: ''})); }}>
+                    {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">To Wallet</label>
+                  <Select value={transferToWalletId} onChange={(e: any) => { setTransferToWalletId(e.target.value); setErrors(prev => ({...prev, transfer: ''})); }}>
+                    {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </Select>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">From Envelope</label>
+                  <Select value={allocationId} onChange={(e: any) => { setAllocationId(e.target.value); setErrors(prev => ({...prev, transfer: ''})); }}>
+                    {allocations.map((a: any) => <option key={a.id} value={a.id}>{a.name} (₱{Number(a.balance).toLocaleString()})</option>)}
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">To Envelope</label>
+                  <Select value={transferToAllocId} onChange={(e: any) => { setTransferToAllocId(e.target.value); setErrors(prev => ({...prev, transfer: ''})); }}>
+                    {allocations.map((a: any) => <option key={a.id} value={a.id}>{a.name} (₱{Number(a.balance).toLocaleString()})</option>)}
+                  </Select>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* NOTE */}
         <div className="flex flex-col gap-2 mt-2">
           <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">Note (Optional)</label>
@@ -320,6 +385,30 @@ export default function TransactionForm({ wallets, allocations }: any) {
                   <span className="text-neutral-500 font-medium">{tab === 'LEND' ? 'For' : 'From'}</span>
                   <span className="font-medium text-white">{personName}</span>
                 </div>
+              )}
+              {tab === 'TRANSFER' && transferType === 'WALLET' && (
+                <>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-neutral-500 font-medium">From Wallet</span>
+                    <span className="font-medium text-white">{wallets.find((w: any) => w.id === walletId)?.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-neutral-500 font-medium">To Wallet</span>
+                    <span className="font-medium text-white">{wallets.find((w: any) => w.id === transferToWalletId)?.name}</span>
+                  </div>
+                </>
+              )}
+              {tab === 'TRANSFER' && transferType === 'ENVELOPE' && (
+                <>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-neutral-500 font-medium">From Envelope</span>
+                    <span className="font-medium text-white">{allocations.find((a: any) => a.id === allocationId)?.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-neutral-500 font-medium">To Envelope</span>
+                    <span className="font-medium text-white">{allocations.find((a: any) => a.id === transferToAllocId)?.name}</span>
+                  </div>
+                </>
               )}
             </div>
 
