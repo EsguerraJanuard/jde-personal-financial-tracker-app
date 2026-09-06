@@ -114,7 +114,36 @@ export async function processTransaction(payload: any) {
      }
   }
 
+  // BORROW (UTANG)
+  else if (type === 'BORROW') {
+     let { data: personWallet } = await supabase.from('wallets').select('id').ilike('name', person_name).eq('group_type', 'Utang Ko (Payable)').single();
+     
+     if (!personWallet) {
+       const { data: newWallet, error } = await supabase.from('wallets').insert([{ name: person_name, group_type: 'Utang Ko (Payable)' }]).select('id').single();
+       if (error) throw new Error(error.message);
+       personWallet = newWallet;
+     }
+
+     // Payable wallet records as negative (you owe them)
+     await supabase.from('wallet_ledger').insert([
+       { transaction_id: txId, wallet_id: personWallet.id, amount: -amount }
+     ]);
+
+     // Matching offset allocation to keep double-entry balanced
+     let { data: offsetAlloc } = await supabase.from('allocations').select('id').eq('name', 'Borrowed Money (Offset)').single();
+     if (!offsetAlloc) {
+        const { data: newAlloc } = await supabase.from('allocations').insert([{ name: 'Borrowed Money (Offset)', target_percentage: 0 }]).select('id').single();
+        if (newAlloc) offsetAlloc = newAlloc;
+     }
+     if (offsetAlloc) {
+        await supabase.from('allocation_ledger').insert([
+          { transaction_id: txId, allocation_id: offsetAlloc.id, amount: -amount }
+        ]);
+     }
+  }
+
   revalidatePath('/');
   revalidatePath('/history');
+  revalidatePath('/utang');
   return { success: true, splitBreakdown };
 }

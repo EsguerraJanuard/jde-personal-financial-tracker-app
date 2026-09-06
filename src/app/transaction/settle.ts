@@ -34,9 +34,10 @@ export async function processSettlement({
   await supabase.from('wallet_ledger').insert(wLedger);
 
   // 2. Update Envelopes (Allocations)
-  let { data: offsetAlloc } = await supabase.from('allocations').select('id').eq('name', 'Lent Money (Offset)').single();
+  const offsetName = isReceivable ? 'Lent Money (Offset)' : 'Borrowed Money (Offset)';
+  let { data: offsetAlloc } = await supabase.from('allocations').select('id').eq('name', offsetName).single();
   if (!offsetAlloc) {
-     const { data: newAlloc } = await supabase.from('allocations').insert([{ name: 'Lent Money (Offset)', target_percentage: 0 }]).select('id').single();
+     const { data: newAlloc } = await supabase.from('allocations').insert([{ name: offsetName, target_percentage: 0 }]).select('id').single();
      if (newAlloc) offsetAlloc = newAlloc;
   }
   const offsetId = offsetAlloc?.id;
@@ -44,11 +45,9 @@ export async function processSettlement({
   const aLedger = [];
   
   if (isReceivable) {
-     // Offset goes down (debt is cleared)
-     aLedger.push({ transaction_id: txId, allocation_id: offsetId, amount: -amount });
-     
-     // Only distribute to envelopes if we know where the money came from
      if (destinations && destinations.length > 0) {
+        // Known source envelopes — reverse the offset and return to each envelope proportionally
+        aLedger.push({ transaction_id: txId, allocation_id: offsetId, amount: -amount });
         for (const dest of destinations) {
            const destAmt = Number(dest.amount);
            if (destAmt > 0) {
@@ -56,28 +55,15 @@ export async function processSettlement({
            }
         }
      }
-     // If no destinations — money goes straight to the physical wallet, offset absorbs it. No envelope entry needed.
+     // If destinations is empty: the money was seeded directly into envelopes (no offset was created).
+     // The wallet swap (person wallet ↓, physical wallet ↑) is self-balancing at net 0.
+     // No alloc entries needed — the envelopes already "contain" this money.
   } else {
-     // We pay them: Real Envelopes get -, Offset gets +
+     // We pay them: Offset gets +, chosen envelope gets -
      aLedger.push({ transaction_id: txId, allocation_id: offsetId, amount: amount });
-     
-     if (isSplit) {
-        const { data: allocs } = await supabase.from('allocations').select('*');
-        for (const a of (allocs || [])) {
-          if (a.target_percentage > 0) {
-             const splitAmt = amount * (a.target_percentage / 100);
-             if (splitAmt > 0) {
-                aLedger.push({ transaction_id: txId, allocation_id: a.id, amount: -splitAmt });
-             }
-          }
-        }
-     } else {
-        for (const dest of destinations) {
-           const destAmt = Number(dest.amount);
-           if (destAmt > 0) {
-              aLedger.push({ transaction_id: txId, allocation_id: dest.allocation_id, amount: -destAmt });
-           }
-        }
+     const chosenId = destinations[0]?.allocation_id;
+     if (chosenId) {
+        aLedger.push({ transaction_id: txId, allocation_id: chosenId, amount: -amount });
      }
   }
 

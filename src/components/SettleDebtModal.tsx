@@ -121,18 +121,10 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
             <label className="text-[10px] text-neutral-500 uppercase tracking-widest font-semibold">
               {isReceivable ? (hasKnownDestinations ? 'Route Money To Envelope (Auto)' : 'Envelope Routing') : 'Take Money From Envelope'}
             </label>
-            {!isReceivable && !isSplit && (
-              <span className={`text-[10px] font-bold uppercase tracking-widest ${Math.abs(remaining) < 0.01 ? 'text-green-400' : 'text-orange-400'}`}>
-                Remaining: ₱{remaining.toLocaleString()}
-              </span>
-            )}
-          </div>
-          
           {!isReceivable && (
-            <div className="flex gap-2 p-1 bg-black rounded-xl border border-neutral-800">
-               <button type="button" onClick={() => setIsSplit(true)} className={`flex-1 py-2 rounded-lg text-xs font-semibold ${isSplit ? 'bg-neutral-800 text-white' : 'text-neutral-500'}`}>Split (Centavos)</button>
-               <button type="button" onClick={() => setIsSplit(false)} className={`flex-1 py-2 rounded-lg text-xs font-semibold ${!isSplit ? 'bg-neutral-800 text-white' : 'text-neutral-500'}`}>Direct</button>
-            </div>
+            <span className={`text-[10px] font-bold uppercase tracking-widest ${Math.abs(remaining) < 0.01 ? 'text-green-400' : 'text-orange-400'}`}>
+              From Envelope
+            </span>
           )}
 
           {isReceivable && hasKnownDestinations && (
@@ -155,43 +147,15 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
             </div>
           )}
 
-          {!isReceivable && !isSplit && (
+          {!isReceivable && (
             <div className="flex flex-col gap-2">
-              {destinations.map((dest, idx) => (
-                <div key={dest.id} className="flex gap-2">
-                  <select 
-                    value={dest.allocation_id} 
-                    onChange={e => {
-                      const newDests = [...destinations];
-                      newDests[idx].allocation_id = e.target.value;
-                      setDestinations(newDests);
-                    }}
-                    className="flex-1 bg-black rounded-xl px-3 py-3 text-xs font-medium outline-none border border-neutral-800 focus:border-neutral-700"
-                  >
-                    {allocations.map((a: any) => <option key={a.id} value={a.id}>{a.name} (₱{Number(a.balance).toLocaleString()})</option>)}
-                  </select>
-                  <input 
-                    type="number" placeholder="₱0"
-                    value={dest.amount}
-                    onChange={e => {
-                      const newDests = [...destinations];
-                      newDests[idx].amount = e.target.value;
-                      setDestinations(newDests);
-                    }}
-                    className="w-20 bg-black rounded-xl px-2 py-3 text-xs font-semibold outline-none text-right border border-neutral-800 focus:border-neutral-700"
-                  />
-                </div>
-              ))}
-              
-              {destinations.length < 3 && (
-                <button 
-                  type="button" 
-                  onClick={() => setDestinations([...destinations, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }])}
-                  className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 py-2 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
-                >
-                  + Add Envelope
-                </button>
-              )}
+              <select 
+                value={destinations[0]?.allocation_id || ''}
+                onChange={e => setDestinations([{ ...destinations[0], allocation_id: e.target.value }])}
+                className="w-full bg-black rounded-xl px-4 py-3 text-sm font-medium outline-none border border-neutral-800 focus:border-neutral-700"
+              >
+                {allocations.map((a: any) => <option key={a.id} value={a.id}>{a.name} (₱{Number(a.balance).toLocaleString()})</option>)}
+              </select>
             </div>
           )}
         </div>

@@ -6,7 +6,7 @@ import { ArrowLeft, ChevronDown, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
 export default function TransactionForm({ wallets, allocations }: any) {
-  const [tab, setTab] = useState<'INCOME' | 'EXPENSE' | 'LEND'>('INCOME');
+  const [tab, setTab] = useState<'INCOME' | 'EXPENSE' | 'LEND' | 'BORROW'>('INCOME');
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -47,6 +47,13 @@ export default function TransactionForm({ wallets, allocations }: any) {
       if (Number(amount) > 0 && remainingLend !== 0) {
         newErrors.lendSource = `Remaining balance must be exactly 0`;
         if (!newErrors.amount && !newErrors.personName) lendSourceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    if (tab === 'BORROW') {
+      if (!personName.trim()) {
+        newErrors.personName = "Required";
+        if (!newErrors.amount) personRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
 
@@ -108,16 +115,16 @@ export default function TransactionForm({ wallets, allocations }: any) {
         <h1 className="font-semibold text-lg">New Transaction</h1>
       </header>
 
-      <div className="p-5 flex gap-2">
-        {['INCOME', 'EXPENSE', 'LEND'].map(t => (
+      <div className="p-5 grid grid-cols-2 gap-2">
+        {(['INCOME', 'EXPENSE', 'LEND', 'BORROW'] as const).map(t => (
           <button 
             key={t}
             type="button"
             onClick={() => {
-              setTab(t as any);
+              setTab(t);
               setErrors({});
             }}
-            className={`flex-1 py-2 text-[11px] font-bold rounded-lg uppercase tracking-wider transition-colors ${tab === t ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-500'}`}
+            className={`py-2 text-[11px] font-bold rounded-lg uppercase tracking-wider transition-colors ${tab === t ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-500'}`}
           >
             {t}
           </button>
@@ -143,15 +150,17 @@ export default function TransactionForm({ wallets, allocations }: any) {
           </div>
         </div>
 
-        {/* FROM / TO WALLET */}
-        <div className="flex flex-col gap-2">
-          <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">
-            {tab === 'INCOME' ? 'To Wallet' : 'From Wallet'}
-          </label>
-          <Select value={walletId} onChange={(e: any) => setWalletId(e.target.value)}>
-            {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
-          </Select>
-        </div>
+        {/* FROM / TO WALLET — hidden for BORROW */}
+        {tab !== 'BORROW' && (
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">
+              {tab === 'INCOME' ? 'To Wallet' : 'From Wallet'}
+            </label>
+            <Select value={walletId} onChange={(e: any) => setWalletId(e.target.value)}>
+              {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </Select>
+          </div>
+        )}
 
         {/* INCOME TABS */}
         {tab === 'INCOME' && (
@@ -251,6 +260,22 @@ export default function TransactionForm({ wallets, allocations }: any) {
           </>
         )}
 
+        {/* BORROW TAB */}
+        {tab === 'BORROW' && (
+          <div className="flex flex-col gap-2" ref={personRef}>
+            <div className="flex justify-between items-end">
+              <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">Borrowed From</label>
+              {errors.personName && <span className="text-[10px] text-red-400 font-medium flex items-center gap-1"><AlertCircle size={10} /> {errors.personName}</span>}
+            </div>
+            <input 
+              type="text" 
+              value={personName} onChange={e => { setPersonName(e.target.value); setErrors(prev => ({...prev, personName: ''})); }}
+              className={`w-full bg-neutral-900 rounded-xl px-5 py-4 text-sm font-medium outline-none transition-shadow ${errors.personName ? 'ring-1 ring-red-500/50' : 'focus:ring-2 focus:ring-neutral-700'}`}
+              placeholder="e.g. Mama"
+            />
+          </div>
+        )}
+
         {/* NOTE */}
         <div className="flex flex-col gap-2 mt-2">
           <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">Note (Optional)</label>
@@ -290,9 +315,9 @@ export default function TransactionForm({ wallets, allocations }: any) {
                 <span className="text-neutral-500 font-medium">Amount</span>
                 <span className="font-bold text-xl">₱{Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
-              {tab === 'LEND' && (
+              {(tab === 'LEND' || tab === 'BORROW') && (
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-neutral-500 font-medium">For</span>
+                  <span className="text-neutral-500 font-medium">{tab === 'LEND' ? 'For' : 'From'}</span>
                   <span className="font-medium text-white">{personName}</span>
                 </div>
               )}
