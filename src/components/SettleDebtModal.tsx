@@ -126,6 +126,7 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
               From Envelope
             </span>
           )}
+          </div>
 
           {isReceivable && hasKnownDestinations && (
             <div className="flex flex-col gap-2 bg-black rounded-xl p-3 border border-neutral-800">
