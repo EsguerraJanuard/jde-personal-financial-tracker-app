@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
 
 export async function processTransaction(payload: any) {
-  const { type, amount, wallet_id, allocation_id, person_name, lend_sources, description, is_direct } = payload;
+  const { type, amount, wallet_id, allocation_id, person_name, lend_sources, expense_sources, description, is_direct } = payload;
   
   let dbType = type;
   if (type === 'LEND' || type === 'BORROW' || type === 'TRANSFER') dbType = 'TRANSFER';
@@ -66,10 +66,21 @@ export async function processTransaction(payload: any) {
     }
   }
 
-  // EXPENSE
+  // EXPENSE (multi-envelope)
   else if (type === 'EXPENSE') {
      await supabase.from('wallet_ledger').insert([{ transaction_id: txId, wallet_id, amount: -amount }]);
-     await supabase.from('allocation_ledger').insert([{ transaction_id: txId, allocation_id, amount: -amount }]);
+     
+     if (expense_sources && expense_sources.length > 0) {
+        const allocLedgers = [];
+        for (const source of expense_sources) {
+           if (source.amount > 0) {
+              allocLedgers.push({ transaction_id: txId, allocation_id: source.allocation_id, amount: -source.amount });
+           }
+        }
+        if (allocLedgers.length > 0) {
+           await supabase.from('allocation_ledger').insert(allocLedgers);
+        }
+     }
   }
 
   // LEND (PAUTANG)

@@ -6,7 +6,7 @@ import { ArrowLeft, ChevronDown, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
 export default function TransactionForm({ wallets, allocations }: any) {
-  const [tab, setTab] = useState<'INCOME' | 'EXPENSE' | 'LEND' | 'BORROW'>('INCOME');
+  const [tab, setTab] = useState<'INCOME' | 'EXPENSE' | 'LEND' | 'BORROW' | 'TRANSFER'>('INCOME');
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -28,12 +28,17 @@ export default function TransactionForm({ wallets, allocations }: any) {
   const [personName, setPersonName] = useState('');
   const [lendSources, setLendSources] = useState([{ id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]);
 
+  // Expense Specific
+  const [expenseSources, setExpenseSources] = useState([{ id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]);
+
   // Transfer Specific
   const [transferType, setTransferType] = useState<'WALLET' | 'ENVELOPE'>('WALLET');
   const [transferToWalletId, setTransferToWalletId] = useState(wallets[1]?.id || wallets[0]?.id || '');
   const [transferToAllocId, setTransferToAllocId] = useState(allocations[1]?.id || allocations[0]?.id || '');
 
   const remainingLend = Number(amount) - lendSources.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+  const remainingExpense = Number(amount) - expenseSources.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +64,12 @@ export default function TransactionForm({ wallets, allocations }: any) {
       if (!personName.trim()) {
         newErrors.personName = "Required";
         if (!newErrors.amount) personRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    if (tab === 'EXPENSE') {
+      if (Number(amount) > 0 && remainingExpense !== 0) {
+        newErrors.expenseSource = `Remaining balance must be exactly 0`;
       }
     }
 
@@ -96,6 +107,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
         allocation_id: allocationId,
         person_name: personName.trim(),
         lend_sources: tab === 'LEND' ? lendSources.map(s => ({ allocation_id: s.allocation_id, amount: Number(s.amount) })) : [],
+        expense_sources: tab === 'EXPENSE' ? expenseSources.map(s => ({ allocation_id: s.allocation_id, amount: Number(s.amount) })) : [],
         description,
         is_direct: isDirect,
         transfer_type: tab === 'TRANSFER' ? transferType : undefined,
@@ -198,11 +210,55 @@ export default function TransactionForm({ wallets, allocations }: any) {
 
         {/* EXPENSE TAB */}
         {tab === 'EXPENSE' && (
-          <div className="flex flex-col gap-2">
-            <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">From Envelope</label>
-            <Select value={allocationId} onChange={(e: any) => setAllocationId(e.target.value)}>
-              {allocations.map((a: any) => <option key={a.id} value={a.id}>{a.name} (₱{Number(a.balance).toLocaleString()})</option>)}
-            </Select>
+          <div className="flex flex-col gap-3">
+            <div className="flex justify-between items-end">
+              <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">From Envelopes</label>
+              {errors.expenseSource ? (
+                <span className="text-[10px] text-red-400 font-medium flex items-center gap-1"><AlertCircle size={10} /> {errors.expenseSource}</span>
+              ) : (
+                <span className={`text-[10px] font-bold uppercase tracking-widest ${Math.abs(remainingExpense) < 0.01 ? 'text-green-400' : 'text-orange-400'}`}>
+                  Remaining: ₱{remainingExpense.toLocaleString()}
+                </span>
+              )}
+            </div>
+
+            {expenseSources.map((source, idx) => (
+              <div key={source.id} className="flex gap-2">
+                <select 
+                  value={source.allocation_id}
+                  onChange={e => {
+                    const newSources = [...expenseSources];
+                    newSources[idx].allocation_id = e.target.value;
+                    setExpenseSources(newSources);
+                    setErrors(prev => ({...prev, expenseSource: ''}));
+                  }}
+                  className="flex-1 bg-neutral-900 rounded-xl px-3 py-4 text-sm font-medium outline-none border border-transparent focus:border-neutral-700"
+                >
+                  {allocations.map((a: any) => <option key={a.id} value={a.id}>{a.name} (₱{Number(a.balance).toLocaleString()})</option>)}
+                </select>
+                <input 
+                  type="number" step="0.01" placeholder="₱0"
+                  value={source.amount}
+                  onChange={e => {
+                    const newSources = [...expenseSources];
+                    newSources[idx].amount = e.target.value;
+                    setExpenseSources(newSources);
+                    setErrors(prev => ({...prev, expenseSource: ''}));
+                  }}
+                  className="w-24 bg-neutral-900 rounded-xl px-3 py-4 text-sm font-semibold outline-none text-right border border-transparent focus:border-neutral-700"
+                />
+              </div>
+            ))}
+            
+            {expenseSources.length < 3 && (
+              <button 
+                type="button" 
+                onClick={() => setExpenseSources([...expenseSources, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }])}
+                className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
+              >
+                + Add Envelope
+              </button>
+            )}
           </div>
         )}
 
