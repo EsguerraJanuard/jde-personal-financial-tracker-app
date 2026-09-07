@@ -144,8 +144,8 @@ export default function TransactionForm({ wallets, allocations }: any) {
         <h1 className="font-semibold text-lg">New Transaction</h1>
       </header>
 
-      <div className="p-5 grid grid-cols-2 gap-2">
-        {(['INCOME', 'EXPENSE', 'LEND', 'BORROW'] as const).map(t => (
+      <div className="p-5 grid grid-cols-5 gap-1.5">
+        {(['INCOME', 'EXPENSE', 'LEND', 'BORROW', 'TRANSFER'] as const).map(t => (
           <button 
             key={t}
             type="button"
@@ -153,7 +153,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
               setTab(t);
               setErrors({});
             }}
-            className={`py-2 text-[11px] font-bold rounded-lg uppercase tracking-wider transition-colors ${tab === t ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-500'}`}
+            className={`py-2 text-[9px] font-bold rounded-lg uppercase tracking-wider transition-colors ${tab === t ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-500'}`}
           >
             {t}
           </button>
