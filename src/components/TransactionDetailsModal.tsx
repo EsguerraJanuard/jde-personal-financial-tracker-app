@@ -19,6 +19,7 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
   // Wallet Info
   let fromWallet = '';
   let toWallet = '';
+  let toWalletLabel = 'To Wallet';
 
   if (tx.type === 'INCOME_SPLIT' || tx.type === 'MANUAL_ADJUSTMENT') {
      const w = tx.wallet_ledger?.find((l: any) => l.amount > 0);
@@ -34,11 +35,26 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
   } else if (tx.type === 'TRANSFER') {
      const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
      const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
-     mainAmount = wFrom ? Math.abs(wFrom.amount) : 0;
-     color = 'text-blue-400';
-     typeLabel = 'Lent Money';
-     fromWallet = wFrom?.wallets?.name || 'Unknown';
-     toWallet = wTo?.wallets?.name || 'Unknown';
+     const aFrom = tx.allocation_ledger?.find((l: any) => l.amount < 0);
+     const aTo = tx.allocation_ledger?.find((l: any) => l.amount > 0);
+
+     const hasWalletMovement = !!(wFrom || wTo);
+     const hasEnvelopeMovement = !!(aFrom || aTo);
+
+     if (hasWalletMovement) {
+         mainAmount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
+         color = 'text-blue-400';
+         typeLabel = 'Wallet Transfer';
+         fromWallet = wFrom?.wallets?.name || 'Unknown';
+         toWallet = wTo?.wallets?.name || 'Unknown';
+         toWalletLabel = 'To Wallet';
+     } else if (hasEnvelopeMovement) {
+         mainAmount = aFrom ? Math.abs(aFrom.amount) : (aTo ? aTo.amount : 0);
+         color = 'text-purple-400'; 
+         typeLabel = 'Envelope Transfer';
+         fromWallet = '';
+         toWallet = '';
+     }
   }
 
   // Filter out offset allocations
@@ -100,7 +116,7 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
 
             {toWallet && (
               <div className="flex justify-between text-sm">
-                <span className="text-neutral-500 font-medium">{tx.type === 'TRANSFER' ? 'For (Person)' : 'To Wallet'}</span>
+                <span className="text-neutral-500 font-medium">{toWalletLabel}</span>
                 <span className="font-semibold text-neutral-200">{toWallet}</span>
               </div>
             )}
