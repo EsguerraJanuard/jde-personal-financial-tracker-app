@@ -3,11 +3,11 @@
 import { supabase } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 
-export async function saveSettings({ updates, newEnvelopes, pinnedWalletIds, newWalletName }: { 
+export async function saveSettings({ updates, newEnvelopes, pinnedWalletIds, newWallets }: { 
   updates: any[]; 
   newEnvelopes: any[]; 
   pinnedWalletIds: string[];
-  newWalletName?: string;
+  newWallets?: { name: string }[];
 }) {
   // 1. Update existing envelope percentages
   for (const env of updates) {
@@ -28,14 +28,17 @@ export async function saveSettings({ updates, newEnvelopes, pinnedWalletIds, new
     if (error) throw new Error(error.message);
   }
 
-  // 3. Insert new wallet if provided
-  if (newWalletName && newWalletName.trim() !== '') {
-    const { error } = await supabase.from('wallets').insert({
-      name: newWalletName.trim(),
+  // 3. Insert brand new wallets
+  if (newWallets && newWallets.length > 0) {
+    const formattedWallets = newWallets.filter(w => w.name.trim() !== '').map(w => ({
+      name: w.name.trim(),
       group_type: 'Frequent',
       is_pinned: true
-    });
-    if (error) throw new Error(error.message);
+    }));
+    if (formattedWallets.length > 0) {
+      const { error } = await supabase.from('wallets').insert(formattedWallets);
+      if (error) throw new Error(error.message);
+    }
   }
 
   // 4. Update pinned wallets status

@@ -12,6 +12,7 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
   // Clone allocations to state for editing
   const [envs, setEnvs] = useState<any[]>(allocations.map(a => ({ ...a, target_percentage: Number(a.target_percentage) })));
   const [newEnvs, setNewEnvs] = useState<any[]>([]);
+  const [newWallets, setNewWallets] = useState<any[]>([]);
   
   // Pinned Wallets State
   const initialPinned = wallets.filter(w => w.is_pinned).map(w => w.id);
@@ -57,11 +58,27 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
     setNewEnvs(prev => prev.filter((_, i) => i !== index));
   };
 
+  const addNewWallet = () => {
+    setNewWallets(prev => [...prev, { name: '' }]);
+  };
+
+  const removeNewWallet = (index: number) => {
+    setNewWallets(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleNewWalletChange = (index: number, value: string) => {
+    setNewWallets(prev => {
+      const copy = [...prev];
+      copy[index].name = value;
+      return copy;
+    });
+  };
+
   const totalPercentage = 
     envs.reduce((sum, e) => sum + e.target_percentage, 0) + 
     newEnvs.reduce((sum, e) => sum + e.target_percentage, 0);
 
-  const isValid = totalPercentage === 100 && newEnvs.every(e => e.name.trim() !== '') && pinnedWalletIds.length > 0 && pinnedWalletIds.length <= 3;
+  const isValid = (totalPercentage === 100 && newEnvs.every(e => e.name.trim() !== '') && newWallets.every(w => w.name.trim() !== '') && pinnedWalletIds.length > 0 && pinnedWalletIds.length <= 3);
 
   const handleSave = async () => {
     if (!isValid) return;
@@ -77,7 +94,8 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
       await saveSettings({
         updates,
         newEnvelopes: newEnvs,
-        pinnedWalletIds
+        pinnedWalletIds,
+        newWallets
       });
 
       setShowSuccess(true);
@@ -142,6 +160,37 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
           <p className="text-[10px] text-neutral-500 font-medium px-2 mt-1">Select up to 3 wallets to display prominently on your dashboard.</p>
         </section>
 
+        {/* New Wallets Section */}
+        {newWallets.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-[12px] font-medium text-neutral-500 uppercase tracking-widest pl-1">New Wallets</h2>
+            <div className="flex flex-col gap-2">
+              {newWallets.map((wallet, idx) => (
+                <div key={idx} className="flex flex-col gap-3 bg-neutral-900/60 border border-neutral-700/50 rounded-2xl p-4 relative">
+                  <button onClick={() => removeNewWallet(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full active:scale-90">
+                    <X size={14} />
+                  </button>
+                  <input 
+                    type="text" 
+                    placeholder="Wallet Name (e.g. CIMB, Crypto)"
+                    value={wallet.name}
+                    onChange={(e) => handleNewWalletChange(idx, e.target.value)}
+                    className="w-full bg-black border border-neutral-800 rounded-xl py-3 px-4 text-sm font-bold focus:ring-1 focus:ring-neutral-600 outline-none text-white"
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Add Wallet Button */}
+        <button 
+          onClick={addNewWallet}
+          className="w-full flex items-center justify-center gap-2 bg-neutral-900 border border-neutral-800 rounded-2xl p-4 text-sm font-bold text-neutral-400 hover:text-white transition-colors active:scale-95"
+        >
+          <Plus size={18} /> Add New Wallet
+        </button>
+
         {/* Existing Envelopes */}
         <section className="flex flex-col gap-3">
           <h2 className="text-[12px] font-medium text-neutral-500 uppercase tracking-widest pl-1">Envelope Percentages</h2>
@@ -196,7 +245,7 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
           </section>
         )}
 
-        {/* Add Button */}
+        {/* Add Envelope Button */}
         <button 
           onClick={addNewEnv}
           className="w-full flex items-center justify-center gap-2 bg-neutral-900 border border-neutral-800 rounded-2xl p-4 text-sm font-bold text-neutral-400 hover:text-white transition-colors active:scale-95"
@@ -228,7 +277,7 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
               </div>
               <h3 className="text-xl font-semibold mb-1 tracking-tight">Save Changes?</h3>
               <p className="text-neutral-400 text-xs px-2">
-                This will update the percentage distribution of your income splits moving forward.
+                This will update your settings and wallet configuration.
               </p>
             </div>
             
@@ -260,7 +309,7 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
                 <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
               </div>
               <h3 className="text-2xl font-bold mb-1 tracking-tight">Saved!</h3>
-              <p className="text-neutral-400 text-sm">Envelope distributions updated successfully.</p>
+              <p className="text-neutral-400 text-sm">Settings updated successfully.</p>
             </div>
             <button 
               onClick={() => {
