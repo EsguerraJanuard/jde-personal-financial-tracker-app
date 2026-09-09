@@ -1,24 +1,37 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { deleteTransaction } from '@/app/transaction/delete';
 import { ArrowLeft, Search, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import TransactionDetailsModal from './TransactionDetailsModal';
 
+// Interfaces for strict typing
+interface LedgerEntry {
+  amount: number;
+  wallets?: { name: string };
+  allocations?: { name: string };
+}
+
+interface Transaction {
+  id: string;
+  type: string;
+  description: string;
+  created_at: string;
+  wallet_ledger: LedgerEntry[];
+  allocation_ledger: LedgerEntry[];
+}
+
 export default function HistoryClient() {
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   
-  // Custom Delete Modal State
   const [txToDelete, setTxToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  
-  // Details Modal State
-  const [selectedTx, setSelectedTx] = useState<any>(null);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
   useEffect(() => {
     fetchTransactions();
@@ -37,13 +50,15 @@ export default function HistoryClient() {
       .order('created_at', { ascending: false });
 
     if (monthFilter) {
-      const start = new Date(`${monthFilter}-01`);
-      const end = new Date(start.getFullYear(), start.getMonth() + 1, 0); 
+      const [year, month] = monthFilter.split('-');
+      const start = new Date(Number(year), Number(month) - 1, 1);
+      const end = new Date(Number(year), Number(month), 0, 23, 59, 59, 999); 
       query = query.gte('created_at', start.toISOString()).lte('created_at', end.toISOString());
     }
 
-    const { data } = await query;
-    if (data) setTransactions(data);
+    const { data, error } = await query;
+    if (error) console.error("Error fetching transactions:", error);
+    if (data) setTransactions(data as unknown as Transaction[]);
     setLoading(false);
   };
 
@@ -56,25 +71,26 @@ export default function HistoryClient() {
       setTxToDelete(null);
       setSelectedTx(null);
     } catch (err: any) {
-      alert('Failed to delete: ' + err.message);
+      console.error(err);
+      alert('Failed to delete: ' + err.message); 
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const formatTx = (tx: any) => {
+  const formatTx = (tx: Transaction) => {
     let amount = 0;
     let sign = '';
     let color = 'text-white';
-    let title = tx.description || tx.type.replace('_', ' ');
+    let title = tx.description || tx.type.replace(/_/g, ' ');
 
     if (tx.wallet_ledger && tx.wallet_ledger.length > 0) {
        if (tx.type === 'EXPENSE') {
-          const entry = tx.wallet_ledger.find((l: any) => l.amount < 0);
+          const entry = tx.wallet_ledger.find(l => l.amount < 0);
           amount = entry ? Math.abs(entry.amount) : 0;
           sign = '-';
        } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'MANUAL_ADJUSTMENT') {
-          const entry = tx.wallet_ledger.find((l: any) => l.amount > 0);
+          const entry = tx.wallet_ledger.find(l => l.amount > 0);
           amount = entry ? entry.amount : 0;
           sign = '+';
           color = 'text-green-400';
@@ -89,12 +105,14 @@ export default function HistoryClient() {
     return { title, amount, sign, color };
   };
 
-  const filteredTransactions = transactions.filter(tx => {
-    if (!searchQuery) return true;
-    const searchLower = searchQuery.toLowerCase();
-    const title = (tx.description || tx.type.replace('_', ' ')).toLowerCase();
-    return title.includes(searchLower);
-  });
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(tx => {
+      if (!searchQuery) return true;
+      const searchLower = searchQuery.toLowerCase();
+      const title = (tx.description || tx.type.replace(/_/g, ' ')).toLowerCase();
+      return title.includes(searchLower);
+    });
+  }, [transactions, searchQuery]);
 
   return (
     <div className="flex flex-col h-full min-h-screen bg-black">
@@ -104,7 +122,6 @@ export default function HistoryClient() {
       </header>
 
       <div className="p-5 flex flex-col gap-5">
-        {/* Search & Filter Controls */}
         <div className="flex gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500" size={16} />
@@ -125,14 +142,13 @@ export default function HistoryClient() {
           />
         </div>
 
-        {/* Transactions List */}
         <div className="flex flex-col gap-3 pb-10">
           {loading ? (
             <div className="text-center py-10 text-neutral-500 text-sm font-medium">Loading...</div>
           ) : filteredTransactions.length === 0 ? (
             <div className="text-center py-10 text-neutral-500 text-sm font-medium">No transactions found.</div>
           ) : (
-            filteredTransactions.map((tx: any) => {
+            filteredTransactions.map((tx) => {
               const { title, amount, sign, color } = formatTx(tx);
               const dateObj = new Date(tx.created_at);
               const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -154,7 +170,6 @@ export default function HistoryClient() {
                       {sign}₱{amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                     </span>
                     
-                    {/* Delete Button */}
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -173,7 +188,6 @@ export default function HistoryClient() {
         </div>
       </div>
 
-      {/* CUSTOM DELETE CONFIRMATION MODAL */}
       {txToDelete && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center p-5 bg-black/80 backdrop-blur-md">
           <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-3xl p-6 flex flex-col gap-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
@@ -207,7 +221,6 @@ export default function HistoryClient() {
         </div>
       )}
 
-      {/* TRANSACTION DETAILS MODAL */}
       <TransactionDetailsModal 
         tx={selectedTx} 
         onClose={(deleted?: boolean) => {
