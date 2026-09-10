@@ -15,6 +15,9 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
   const [error, setError] = useState('');
 
   const activeList = activeTab === 'LENT' ? receivables : payables;
+  
+  // Specific one-off exception boolean for Kuya ER
+  const isKuyaERException = selectedLoan?.person_name?.toLowerCase() === 'kuya er';
 
   const handleOpenModal = (loan: any) => {
     setSelectedLoan(loan);
@@ -28,7 +31,9 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
     if (!amount || Number(amount) <= 0) return setError('Enter a valid amount.');
     if (Number(amount) > selectedLoan.remaining) return setError('Cannot settle more than the remaining balance.');
     if (!walletId) return setError('Please select a physical wallet.');
-    if (!envelopeId) return setError('Please select an envelope.');
+    
+    // Bypass envelope validation exclusively for Kuya ER
+    if (!isKuyaERException && !envelopeId) return setError('Please select an envelope.');
 
     setIsSubmitting(true);
     setError('');
@@ -41,8 +46,8 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
          amount: Number(amount),
          person_name: selectedLoan.person_name,
          wallet_id: walletId,
-         allocation_id: envelopeId,
-         parent_transaction_id: selectedLoan.id, // Enforces the new relational tracking
+         allocation_id: isKuyaERException ? undefined : envelopeId, // Ignored by backend if undefined
+         parent_transaction_id: selectedLoan.id,
          description: `${type === 'DEBT_COLLECTION' ? 'Collected from' : 'Paid to'} ${selectedLoan.person_name}`
       });
       
@@ -119,10 +124,10 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
         )}
       </div>
 
-      {/* Explicit Settlement Routing Modal */}
+      {/* Centered Explicit Settlement Routing Modal */}
       {selectedLoan && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-neutral-900 border-t border-neutral-800 rounded-t-3xl p-6 flex flex-col gap-6 animate-in slide-in-from-bottom-full duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-3xl p-6 flex flex-col gap-6 animate-in zoom-in-95 duration-200 shadow-2xl relative">
             
             <div className="flex justify-between items-start">
               <div className="flex flex-col">
@@ -151,7 +156,7 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
                  </div>
                </div>
 
-               <div className="grid grid-cols-2 gap-3">
+               <div className={`grid ${isKuyaERException ? 'grid-cols-1' : 'grid-cols-2'} gap-3`}>
                   <div className="flex flex-col gap-2">
                      <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest pl-1">Target Wallet</label>
                      <select 
@@ -165,19 +170,22 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
                        ))}
                      </select>
                   </div>
-                  <div className="flex flex-col gap-2">
-                     <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest pl-1">Target Envelope</label>
-                     <select 
-                       value={envelopeId} 
-                       onChange={e => setEnvelopeId(e.target.value)}
-                       className="w-full bg-black border border-neutral-800 rounded-xl p-3 text-sm text-white font-medium focus:outline-none focus:border-neutral-600 appearance-none"
-                     >
-                       <option value="" disabled>Select Envelope</option>
-                       {allocations.map((a: any) => (
-                         <option key={a.id} value={a.id}>{a.name}</option>
-                       ))}
-                     </select>
-                  </div>
+                  
+                  {!isKuyaERException && (
+                    <div className="flex flex-col gap-2">
+                       <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest pl-1">Target Envelope</label>
+                       <select 
+                         value={envelopeId} 
+                         onChange={e => setEnvelopeId(e.target.value)}
+                         className="w-full bg-black border border-neutral-800 rounded-xl p-3 text-sm text-white font-medium focus:outline-none focus:border-neutral-600 appearance-none"
+                       >
+                         <option value="" disabled>Select Envelope</option>
+                         {allocations.map((a: any) => (
+                           <option key={a.id} value={a.id}>{a.name}</option>
+                         ))}
+                       </select>
+                    </div>
+                  )}
                </div>
             </div>
 
