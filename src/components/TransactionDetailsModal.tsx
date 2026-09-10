@@ -13,15 +13,38 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
   const timeStr = dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
   let mainAmount = 0;
-  let typeLabel = tx.type.replace('_', ' ');
+  let typeLabel = tx.type?.replace(/_/g, ' ') || 'Unknown';
   let color = 'text-white';
   
-  // Wallet Info
   let fromWallet = '';
   let toWallet = '';
   let toWalletLabel = 'To Wallet';
+  
+  let personName = '';
+  let personLabel = '';
 
-  if (tx.type === 'INCOME_SPLIT' || tx.type === 'MANUAL_ADJUSTMENT') {
+  // 1. Broad Semantic Interception (Bypasses trailing spaces or typos in the DB)
+  const isBorrow = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Borrowed'));
+  const isLend = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Lent'));
+  
+  // 2. Map Transactions
+  if (isBorrow || tx.type === 'BORROW') {
+     const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+     const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+     mainAmount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
+     color = 'text-green-400';
+     typeLabel = 'Borrow';
+     personName = wFrom?.wallets?.name || 'Unknown';
+     personLabel = 'Lender';
+  } else if (isLend || tx.type === 'LEND') {
+     const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+     const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+     mainAmount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
+     color = 'text-red-400';
+     typeLabel = 'Lent';
+     personName = wTo?.wallets?.name || 'Unknown';
+     personLabel = 'Borrower';
+  } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'INCOME_DIRECT' || tx.type === 'MANUAL_ADJUSTMENT') {
      const w = tx.wallet_ledger?.find((l: any) => l.amount > 0);
      mainAmount = w ? w.amount : 0;
      color = 'text-green-400';
@@ -30,8 +53,25 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
   } else if (tx.type === 'EXPENSE') {
      const w = tx.wallet_ledger?.find((l: any) => l.amount < 0);
      mainAmount = w ? Math.abs(w.amount) : 0;
+     color = 'text-white';
      typeLabel = 'Expense';
      fromWallet = w?.wallets?.name || 'Unknown';
+  } else if (tx.type === 'SETTLE_DEBT') {
+     const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+     const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+     mainAmount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
+     color = 'text-red-400';
+     typeLabel = 'Settle Debt';
+     personName = wTo?.wallets?.name || 'Unknown';
+     personLabel = 'Paid To';
+  } else if (tx.type === 'DEBT_COLLECTION') {
+     const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+     const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+     mainAmount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
+     color = 'text-green-400';
+     typeLabel = 'Debt Collection';
+     personName = wFrom?.wallets?.name || 'Unknown';
+     personLabel = 'Collected From';
   } else if (tx.type === 'TRANSFER') {
      const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
      const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
@@ -52,19 +92,20 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
          mainAmount = aFrom ? Math.abs(aFrom.amount) : (aTo ? aTo.amount : 0);
          color = 'text-purple-400'; 
          typeLabel = 'Envelope Transfer';
-         fromWallet = '';
-         toWallet = '';
      }
   }
 
-  // Filter out offset allocations
-  const validAllocations = tx.allocation_ledger?.filter((l: any) => l.allocations?.name !== 'Lent Money (Offset)') || [];
+  // 3. Bulletproof Metadata Filtering
+  const validAllocations = tx.allocation_ledger?.filter((l: any) => {
+    const allocName = l.allocations?.name || '';
+    return !allocName.includes('Lent') && !allocName.includes('Borrowed');
+  }) || [];
 
   const handleConfirmDelete = async () => {
     setIsDeleting(true);
     try {
       await deleteTransaction(tx.id);
-      onClose(true); // Pass true to indicate it was deleted
+      onClose(true);
     } catch (err: any) {
       alert('Failed to delete: ' + err.message);
       setIsDeleting(false);
@@ -104,17 +145,24 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
           <div className="flex flex-col gap-3 px-2">
             <div className="flex justify-between text-sm">
               <span className="text-neutral-500 font-medium">Type</span>
-              <span className="font-semibold">{typeLabel}</span>
+              <span className="font-semibold text-white">{typeLabel}</span>
             </div>
 
-            {fromWallet && (
+            {personName && (
+              <div className="flex justify-between text-sm">
+                <span className="text-neutral-500 font-medium">{personLabel}</span>
+                <span className="font-semibold text-neutral-200 capitalize">{personName}</span>
+              </div>
+            )}
+
+            {!personName && fromWallet && (
               <div className="flex justify-between text-sm">
                 <span className="text-neutral-500 font-medium">From Wallet</span>
                 <span className="font-semibold text-neutral-200">{fromWallet}</span>
               </div>
             )}
 
-            {toWallet && (
+            {!personName && toWallet && (
               <div className="flex justify-between text-sm">
                 <span className="text-neutral-500 font-medium">{toWalletLabel}</span>
                 <span className="font-semibold text-neutral-200">{toWallet}</span>

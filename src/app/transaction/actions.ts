@@ -85,10 +85,11 @@ export async function processTransaction(payload: any) {
 
   // LEND (PAUTANG)
   else if (type === 'LEND') {
-     let { data: personWallet } = await supabase.from('wallets').select('id').ilike('name', person_name).eq('group_type', 'Utang Sakin (Receivable)').single();
+     // FIX: Look up by name ONLY to prevent duplicates. Use maybeSingle() so it doesn't crash if 0 found.
+     let { data: personWallet } = await supabase.from('wallets').select('id').ilike('name', person_name.trim()).maybeSingle();
      
      if (!personWallet) {
-       const { data: newWallet, error } = await supabase.from('wallets').insert([{ name: person_name, group_type: 'Utang Sakin (Receivable)' }]).select('id').single();
+       const { data: newWallet, error } = await supabase.from('wallets').insert([{ name: person_name.trim(), group_type: 'Utang Sakin (Receivable)' }]).select('id').single();
        if (error) throw new Error(error.message);
        personWallet = newWallet;
      }
@@ -127,10 +128,11 @@ export async function processTransaction(payload: any) {
 
   // BORROW (UTANG)
   else if (type === 'BORROW') {
-     let { data: personWallet } = await supabase.from('wallets').select('id').ilike('name', person_name).eq('group_type', 'Utang Ko (Payable)').single();
+     // FIX: Look up by name ONLY to prevent duplicates. Use maybeSingle() so it doesn't crash if 0 found.
+     let { data: personWallet } = await supabase.from('wallets').select('id').ilike('name', person_name.trim()).maybeSingle();
      
      if (!personWallet) {
-       const { data: newWallet, error } = await supabase.from('wallets').insert([{ name: person_name, group_type: 'Utang Ko (Payable)' }]).select('id').single();
+       const { data: newWallet, error } = await supabase.from('wallets').insert([{ name: person_name.trim(), group_type: 'Utang Ko (Payable)' }]).select('id').single();
        if (error) throw new Error(error.message);
        personWallet = newWallet;
      }

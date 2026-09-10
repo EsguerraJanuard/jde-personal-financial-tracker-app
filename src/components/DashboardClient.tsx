@@ -47,44 +47,80 @@ export default function DashboardClient({
 
   const displayedWallets = showAllWallets ? sortedWallets : sortedWallets.slice(0, 3);
 
-  // Helper to format transaction preview
+  // Helper to format transaction preview synchronized with Modal Logic
   const formatTx = (tx: any) => {
     let amount = 0;
     let sign = '';
     let color = 'text-white';
-    let title = tx.description || tx.type.replace(/_/g, ' ');
+    let title = tx.description || tx.type?.replace(/_/g, ' ') || 'Unknown';
 
-    if (tx.type === 'EXPENSE') {
-      const entry = tx.wallet_ledger?.find((l: any) => l.amount < 0);
-      amount = entry ? Math.abs(entry.amount) : 0;
-      sign = '-';
-      color = 'text-white';
-    } 
-    else if (tx.type === 'INCOME_SPLIT' || tx.type === 'MANUAL_ADJUSTMENT') {
-      const entry = tx.wallet_ledger?.find((l: any) => l.amount > 0);
-      amount = entry ? entry.amount : 0;
-      sign = '+';
-      color = 'text-green-400';
-      if (!tx.description) title = 'Income';
-    } 
-    else if (tx.type === 'TRANSFER') {
-      const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
-      const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
-      const aFrom = tx.allocation_ledger?.find((l: any) => l.amount < 0);
-      const aTo = tx.allocation_ledger?.find((l: any) => l.amount > 0);
+    // 1. Broad Semantic Interception for Debt offsets
+    const isBorrow = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Borrowed'));
+    const isLend = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Lent'));
 
-      const hasWalletMovement = !!(wFrom || wTo);
-      const hasEnvelopeMovement = !!(aFrom || aTo);
+    if (isBorrow || tx.type === 'BORROW') {
+       const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+       const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+       amount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
+       color = 'text-green-400';
+       sign = '+';
+       if (!tx.description) title = 'Borrow';
+    } else if (isLend || tx.type === 'LEND') {
+       const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+       const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+       amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
+       color = 'text-red-400';
+       sign = '-';
+       if (!tx.description) title = 'Lent';
+    } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'INCOME_DIRECT' || tx.type === 'MANUAL_ADJUSTMENT') {
+       const w = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+       amount = w ? w.amount : 0;
+       color = 'text-green-400';
+       sign = '+';
+       if (!tx.description) title = tx.type === 'INCOME_SPLIT' ? 'Split Income' : 'Direct Income';
+    } else if (tx.type === 'EXPENSE') {
+       const w = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+       amount = w ? Math.abs(w.amount) : 0;
+       color = 'text-white';
+       sign = '-';
+       if (!tx.description) title = 'Expense';
+    } else if (tx.type === 'SETTLE_DEBT') {
+       const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+       const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+       amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
+       color = 'text-red-400';
+       sign = '-';
+       if (!tx.description) title = 'Settle Debt';
+    } else if (tx.type === 'DEBT_COLLECTION') {
+       const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+       const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+       amount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
+       color = 'text-green-400';
+       sign = '+';
+       if (!tx.description) title = 'Debt Collection';
+    } else if (tx.type === 'TRANSFER') {
+       const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+       const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+       const aFrom = tx.allocation_ledger?.find((l: any) => l.amount < 0);
+       const aTo = tx.allocation_ledger?.find((l: any) => l.amount > 0);
 
-      if (hasWalletMovement) {
-        amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
-        color = 'text-blue-400';
-        if (!tx.description) title = 'Wallet Transfer';
-      } else if (hasEnvelopeMovement) {
-        amount = aFrom ? Math.abs(aFrom.amount) : (aTo ? aTo.amount : 0);
-        color = 'text-purple-400';
-        if (!tx.description) title = 'Envelope Transfer';
-      }
+       const hasWalletMovement = !!(wFrom || wTo);
+       const hasEnvelopeMovement = !!(aFrom || aTo);
+
+       if (hasWalletMovement) {
+           amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
+           color = 'text-blue-400';
+           if (!tx.description) title = 'Wallet Transfer';
+       } else if (hasEnvelopeMovement) {
+           amount = aFrom ? Math.abs(aFrom.amount) : (aTo ? aTo.amount : 0);
+           color = 'text-purple-400'; 
+           if (!tx.description) title = 'Envelope Transfer';
+       } else {
+           // Failsafe: Handles orphaned ₱0 transactions securely without crashing the math
+           amount = 0;
+           color = 'text-neutral-500';
+           if (!tx.description) title = 'Transfer';
+       }
     }
 
     return { title, amount, sign, color };
