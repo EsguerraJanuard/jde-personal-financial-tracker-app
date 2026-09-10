@@ -20,8 +20,11 @@ export default async function Home() {
     .limit(3);
 
   const physicalWallets = wallets?.filter(w => w.group_type === 'Frequent') || [];
-  const receivables = wallets?.filter(w => w.group_type === 'Utang Sakin (Receivable)') || [];
-  const payables = wallets?.filter(w => w.group_type === 'Utang Ko (Payable)') || [];
+  
+  // DYNAMIC DEBT CLASSIFICATION
+  const debtWallets = wallets?.filter(w => ['Utang Sakin (Receivable)', 'Utang Ko (Payable)'].includes(w.group_type)) || [];
+  const receivables = debtWallets.filter(w => Number(w.balance) > 0);
+  const payables = debtWallets.filter(w => Number(w.balance) < 0);
 
   const totalPhysical = physicalWallets.reduce((sum, w) => sum + Number(w.balance), 0);
   const totalReceivables = receivables.reduce((sum, w) => sum + Number(w.balance), 0);

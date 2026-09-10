@@ -7,8 +7,10 @@ export default async function UtangPage() {
   const { data: balances } = await supabase.from("wallet_balances").select("*");
   const { data: ledgers } = await supabase.from("wallet_ledger").select("wallet_id, transactions(created_at)");
 
-  const receivables = balances?.filter(w => w.group_type === 'Utang Sakin (Receivable)' && Number(w.balance) !== 0) || [];
-  const payables = balances?.filter(w => w.group_type === 'Utang Ko (Payable)' && Number(w.balance) !== 0) || [];
+  // DYNAMIC DEBT CLASSIFICATION
+  const debtWallets = balances?.filter(w => ['Utang Sakin (Receivable)', 'Utang Ko (Payable)'].includes(w.group_type)) || [];
+  const receivables = debtWallets.filter(w => Number(w.balance) > 0);
+  const payables = debtWallets.filter(w => Number(w.balance) < 0);
 
   // Map latest transaction date per wallet
   const dateMap: Record<string, string> = {};
@@ -33,7 +35,7 @@ export default async function UtangPage() {
   const visibleAllocations = allocs?.filter(a => !a.name.includes('(Offset)')) || [];
   const offsetAllocs = allocs?.filter(a => a.name.includes('(Offset)')).map(a => a.id) || [];
 
-  const mapWithDates = (list: any[]) => list.map(w => {
+  const mapWithDates = (list: any[], isReceivableList: boolean) => list.map(w => {
      // Find envelopes this person owes or is owed, ONLY from actual lend/settle actions
      const txIds = allWL?.filter(wl => wl.wallet_id === w.id && validTxIds.includes(wl.transaction_id)).map(wl => wl.transaction_id) || [];
      const envelopeMap: Record<string, number> = {};
@@ -42,12 +44,11 @@ export default async function UtangPage() {
         envelopeMap[al.allocation_id] = (envelopeMap[al.allocation_id] || 0) + Number(al.amount);
      });
 
-     // Convert map to array of destinations
+     // Convert map to array of destinations (Dynamic mapping based on list type)
      const defaultDestinations = Object.entries(envelopeMap)
        .map(([allocId, amount]) => ({
           allocation_id: allocId,
-          // If receivable, amount is negative (we took from envelope). So we want to return positive.
-          amount: w.group_type === 'Utang Sakin (Receivable)' ? -amount : amount
+          amount: isReceivableList ? -amount : amount
        }))
        .filter(d => d.amount > 0);
 
@@ -64,8 +65,8 @@ export default async function UtangPage() {
 
   return (
     <UtangClient 
-      receivables={mapWithDates(receivables)} 
-      payables={mapWithDates(payables)} 
+      receivables={mapWithDates(receivables, true)} 
+      payables={mapWithDates(payables, false)} 
       physicalWallets={physicalWallets}
       allocations={visibleAllocations}
     />
