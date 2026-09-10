@@ -52,52 +52,56 @@ export default function DashboardClient({
     let amount = 0;
     let sign = '';
     let color = 'text-white';
-    let title = tx.description || tx.type?.replace(/_/g, ' ') || 'Unknown';
+    
+    // Explicitly separate the core type label and the custom user description
+    let title = tx.type?.replace(/_/g, ' ') || 'Unknown';
+    let subtitle = tx.description || '';
 
     // 1. Broad Semantic Interception for Debt offsets
     const isBorrow = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Borrowed'));
     const isLend = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Lent'));
 
+    // 2. Resolve Core Transaction Title and Colors
     if (isBorrow || tx.type === 'BORROW') {
        const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
        const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
        amount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
        color = 'text-green-400';
        sign = '+';
-       if (!tx.description) title = 'Borrow';
+       title = 'Borrow';
     } else if (isLend || tx.type === 'LEND') {
        const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
        const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
        amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
        color = 'text-red-400';
        sign = '-';
-       if (!tx.description) title = 'Lent';
+       title = 'Lent';
     } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'INCOME_DIRECT' || tx.type === 'MANUAL_ADJUSTMENT') {
        const w = tx.wallet_ledger?.find((l: any) => l.amount > 0);
        amount = w ? w.amount : 0;
        color = 'text-green-400';
        sign = '+';
-       if (!tx.description) title = tx.type === 'INCOME_SPLIT' ? 'Split Income' : 'Direct Income';
+       title = tx.type === 'INCOME_SPLIT' ? 'Split Income' : 'Direct Income';
     } else if (tx.type === 'EXPENSE') {
        const w = tx.wallet_ledger?.find((l: any) => l.amount < 0);
        amount = w ? Math.abs(w.amount) : 0;
        color = 'text-white';
        sign = '-';
-       if (!tx.description) title = 'Expense';
+       title = 'Expense';
     } else if (tx.type === 'SETTLE_DEBT') {
        const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
        const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
        amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
        color = 'text-red-400';
        sign = '-';
-       if (!tx.description) title = 'Settle Debt';
+       title = 'Settle Debt';
     } else if (tx.type === 'DEBT_COLLECTION') {
        const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
        const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
        amount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
        color = 'text-green-400';
        sign = '+';
-       if (!tx.description) title = 'Debt Collection';
+       title = 'Debt Collection';
     } else if (tx.type === 'TRANSFER') {
        const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
        const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
@@ -110,20 +114,19 @@ export default function DashboardClient({
        if (hasWalletMovement) {
            amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
            color = 'text-blue-400';
-           if (!tx.description) title = 'Wallet Transfer';
+           title = 'Wallet Transfer';
        } else if (hasEnvelopeMovement) {
            amount = aFrom ? Math.abs(aFrom.amount) : (aTo ? aTo.amount : 0);
            color = 'text-purple-400'; 
-           if (!tx.description) title = 'Envelope Transfer';
+           title = 'Envelope Transfer';
        } else {
-           // Failsafe: Handles orphaned ₱0 transactions securely without crashing the math
            amount = 0;
            color = 'text-neutral-500';
-           if (!tx.description) title = 'Transfer';
+           title = 'Transfer';
        }
     }
 
-    return { title, amount, sign, color };
+    return { title, subtitle, amount, sign, color };
   };
 
   return (
@@ -233,7 +236,7 @@ export default function DashboardClient({
           </div>
           <div className="flex flex-col gap-2">
             {recentTransactions.map((tx: any) => {
-              const { title, amount, sign, color } = formatTx(tx);
+              const { title, subtitle, amount, sign, color } = formatTx(tx);
               const date = new Date(tx.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               
               return (
@@ -243,8 +246,10 @@ export default function DashboardClient({
                   className="flex justify-between items-center bg-neutral-900/50 border border-neutral-800 rounded-2xl p-4 cursor-pointer hover:bg-neutral-800/80 transition-colors active:scale-95"
                 >
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium capitalize truncate max-w-[200px]">{title}</span>
-                    <span className="text-[10px] text-neutral-500 font-medium">{date}</span>
+                    <span className="text-sm font-bold capitalize truncate max-w-[200px] text-white">{title}</span>
+                    <span className="text-[10px] text-neutral-500 font-medium truncate max-w-[200px]">
+                      {date}{subtitle ? ` • ${subtitle}` : ''}
+                    </span>
                   </div>
                   <span className={`text-base font-semibold ${color}`}>
                     {show ? `${sign}₱${amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '****'}
