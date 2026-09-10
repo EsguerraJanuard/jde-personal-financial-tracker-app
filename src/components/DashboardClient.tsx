@@ -53,33 +53,39 @@ export default function DashboardClient({
     let sign = '';
     let color = 'text-white';
     
-    // Explicitly separate the core type label and the custom user description
     let title = tx.type?.replace(/_/g, ' ') || 'Unknown';
     let subtitle = tx.description || '';
 
-    // 1. Broad Semantic Interception for Debt offsets
-    const isBorrow = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Borrowed'));
-    const isLend = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Lent'));
+    const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+    const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+    
+    // Safely unwrap Vercel array types for wallets
+    const sWallet = Array.isArray(wFrom?.wallets) ? wFrom?.wallets[0] : wFrom?.wallets;
+    const dWallet = Array.isArray(wTo?.wallets) ? wTo?.wallets[0] : wTo?.wallets;
 
-    // 2. Resolve Core Transaction Title and Colors
-    if (isBorrow || tx.type === 'BORROW') {
-       const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
-       const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+    // 1. Broad Semantic Interception for Debt offsets
+    const isBorrowOffset = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Borrowed'));
+    const isLendOffset = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Lent'));
+    
+    // 2. DECOUPLING LOGIC: Explicitly identify if the destination or source is a human contact
+    const isLentToPerson = dWallet?.group_type === 'Utang Sakin (Receivable)';
+    const isBorrowedFromPerson = sWallet?.group_type === 'Utang Ko (Payable)';
+
+    // 3. Resolve Core Transaction Title and Colors
+    if (isBorrowOffset || tx.type === 'BORROW' || isBorrowedFromPerson) {
        amount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
-       color = 'text-green-400';
+       color = 'text-green-500';
        sign = '+';
        title = 'Borrow';
-    } else if (isLend || tx.type === 'LEND') {
-       const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
-       const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+    } else if (isLendOffset || tx.type === 'LEND' || isLentToPerson) {
        amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
-       color = 'text-red-400';
+       color = 'text-red-500'; // Decoupled from blue transfer color
        sign = '-';
        title = 'Lent';
     } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'INCOME_DIRECT' || tx.type === 'MANUAL_ADJUSTMENT') {
        const w = tx.wallet_ledger?.find((l: any) => l.amount > 0);
        amount = w ? w.amount : 0;
-       color = 'text-green-400';
+       color = 'text-green-500';
        sign = '+';
        title = tx.type === 'INCOME_SPLIT' ? 'Split Income' : 'Direct Income';
     } else if (tx.type === 'EXPENSE') {
@@ -89,22 +95,16 @@ export default function DashboardClient({
        sign = '-';
        title = 'Expense';
     } else if (tx.type === 'SETTLE_DEBT') {
-       const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
-       const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
        amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
-       color = 'text-red-400';
+       color = 'text-red-500';
        sign = '-';
        title = 'Settle Debt';
     } else if (tx.type === 'DEBT_COLLECTION') {
-       const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
-       const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
        amount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
-       color = 'text-green-400';
+       color = 'text-green-500';
        sign = '+';
        title = 'Debt Collection';
     } else if (tx.type === 'TRANSFER') {
-       const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
-       const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
        const aFrom = tx.allocation_ledger?.find((l: any) => l.amount < 0);
        const aTo = tx.allocation_ledger?.find((l: any) => l.amount > 0);
 
@@ -113,7 +113,7 @@ export default function DashboardClient({
 
        if (hasWalletMovement) {
            amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
-           color = 'text-blue-400';
+           color = 'text-blue-500';
            title = 'Wallet Transfer';
        } else if (hasEnvelopeMovement) {
            amount = aFrom ? Math.abs(aFrom.amount) : (aTo ? aTo.amount : 0);
@@ -126,7 +126,19 @@ export default function DashboardClient({
        }
     }
 
-    return { title, subtitle, amount, sign, color };
+    // Embed the decoupled properties into the transaction payload for the Modal
+    return {
+      ...tx,
+      displayTitle: title,
+      subtitle: subtitle,
+      displayColor: color,
+      displaySign: sign,
+      displayAmount: amount,
+      isLentToPerson,
+      isBorrowedFromPerson,
+      fromWalletName: sWallet?.name,
+      toWalletName: dWallet?.name
+    };
   };
 
   return (
@@ -236,23 +248,23 @@ export default function DashboardClient({
           </div>
           <div className="flex flex-col gap-2">
             {recentTransactions.map((tx: any) => {
-              const { title, subtitle, amount, sign, color } = formatTx(tx);
-              const date = new Date(tx.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const parsedTx = formatTx(tx);
+              const date = new Date(parsedTx.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               
               return (
                 <div 
-                  key={tx.id} 
-                  onClick={() => setSelectedTx(tx)}
+                  key={parsedTx.id} 
+                  onClick={() => setSelectedTx(parsedTx)}
                   className="flex justify-between items-center bg-neutral-900/50 border border-neutral-800 rounded-2xl p-4 cursor-pointer hover:bg-neutral-800/80 transition-colors active:scale-95"
                 >
                   <div className="flex flex-col">
-                    <span className="text-sm font-bold capitalize truncate max-w-[200px] text-white">{title}</span>
+                    <span className="text-sm font-bold capitalize truncate max-w-[200px] text-white">{parsedTx.displayTitle}</span>
                     <span className="text-[10px] text-neutral-500 font-medium truncate max-w-[200px]">
-                      {date}{subtitle ? ` • ${subtitle}` : ''}
+                      {date}{parsedTx.subtitle ? ` • ${parsedTx.subtitle}` : ''}
                     </span>
                   </div>
-                  <span className={`text-base font-semibold ${color}`}>
-                    {show ? `${sign}₱${amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '****'}
+                  <span className={`text-base font-semibold ${parsedTx.displayColor}`}>
+                    {show ? `${parsedTx.displaySign}₱${parsedTx.displayAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '****'}
                   </span>
                 </div>
               );

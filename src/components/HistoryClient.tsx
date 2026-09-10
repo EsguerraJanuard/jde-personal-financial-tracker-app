@@ -10,8 +10,8 @@ import TransactionDetailsModal from './TransactionDetailsModal';
 // Interfaces for strict typing
 interface LedgerEntry {
   amount: number;
-  wallets?: { name: string };
-  allocations?: { name: string };
+  wallets?: { name: string; group_type?: string } | { name: string; group_type?: string }[];
+  allocations?: { name: string } | { name: string }[];
 }
 
 interface Transaction {
@@ -43,7 +43,7 @@ export default function HistoryClient() {
       .from('transactions')
       .select(`
         id, type, description, created_at,
-        wallet_ledger ( amount, wallets ( name ) ),
+        wallet_ledger ( amount, wallets ( name, group_type ) ),
         allocation_ledger ( amount, allocations ( name ) )
       `)
       .neq('description', 'Initial System Seeding')
@@ -84,24 +84,78 @@ export default function HistoryClient() {
     let color = 'text-white';
     let title = tx.description || tx.type.replace(/_/g, ' ');
 
-    if (tx.wallet_ledger && tx.wallet_ledger.length > 0) {
-       if (tx.type === 'EXPENSE') {
-          const entry = tx.wallet_ledger.find(l => l.amount < 0);
-          amount = entry ? Math.abs(entry.amount) : 0;
-          sign = '-';
-       } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'MANUAL_ADJUSTMENT') {
-          const entry = tx.wallet_ledger.find(l => l.amount > 0);
-          amount = entry ? entry.amount : 0;
-          sign = '+';
-          color = 'text-green-400';
-          if (!tx.description) title = 'Income';
-       } else if (tx.type === 'TRANSFER') {
-          const entry = tx.wallet_ledger[0];
-          amount = entry ? Math.abs(entry.amount) : 0;
-          color = 'text-blue-400';
-          if (!tx.description) title = 'Transfer';
+    const wFrom = tx.wallet_ledger?.find(l => l.amount < 0);
+    const wTo = tx.wallet_ledger?.find(l => l.amount > 0);
+    
+    // Safely unwrap Vercel array types for wallets
+    const sWallet: any = Array.isArray(wFrom?.wallets) ? wFrom?.wallets[0] : wFrom?.wallets;
+    const dWallet: any = Array.isArray(wTo?.wallets) ? wTo?.wallets[0] : wTo?.wallets;
+
+    // 1. Broad Semantic Interception for Debt offsets
+    const isBorrowOffset = tx.allocation_ledger?.some(l => {
+       const allocName = Array.isArray(l.allocations) ? l.allocations[0]?.name : l.allocations?.name;
+       return (allocName || '').includes('Borrowed');
+    });
+    const isLendOffset = tx.allocation_ledger?.some(l => {
+       const allocName = Array.isArray(l.allocations) ? l.allocations[0]?.name : l.allocations?.name;
+       return (allocName || '').includes('Lent');
+    });
+    
+    // 2. DECOUPLING LOGIC: Explicitly identify if the destination or source is a human contact
+    const isLentToPerson = dWallet?.group_type === 'Utang Sakin (Receivable)';
+    const isBorrowedFromPerson = sWallet?.group_type === 'Utang Ko (Payable)';
+
+    // 3. Resolve Core Transaction Title and Colors
+    if (isBorrowOffset || tx.type === 'BORROW' || isBorrowedFromPerson) {
+       amount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
+       color = 'text-green-500';
+       sign = '+';
+       if (!tx.description) title = 'Borrow';
+    } else if (isLendOffset || tx.type === 'LEND' || isLentToPerson) {
+       amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
+       color = 'text-red-500'; // Decoupled from blue transfer color
+       sign = '-';
+       if (!tx.description) title = 'Lent';
+    } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'INCOME_DIRECT' || tx.type === 'MANUAL_ADJUSTMENT') {
+       const w = tx.wallet_ledger?.find(l => l.amount > 0);
+       amount = w ? w.amount : 0;
+       color = 'text-green-500';
+       sign = '+';
+       if (!tx.description) title = tx.type === 'INCOME_SPLIT' ? 'Split Income' : 'Direct Income';
+    } else if (tx.type === 'EXPENSE') {
+       const w = tx.wallet_ledger?.find(l => l.amount < 0);
+       amount = w ? Math.abs(w.amount) : 0;
+       color = 'text-white';
+       sign = '-';
+       if (!tx.description) title = 'Expense';
+    } else if (tx.type === 'SETTLE_DEBT') {
+       amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
+       color = 'text-red-500';
+       sign = '-';
+       if (!tx.description) title = 'Settle Debt';
+    } else if (tx.type === 'DEBT_COLLECTION') {
+       amount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
+       color = 'text-green-500';
+       sign = '+';
+       if (!tx.description) title = 'Debt Collection';
+    } else if (tx.type === 'TRANSFER') {
+       const aFrom = tx.allocation_ledger?.find(l => l.amount < 0);
+       const aTo = tx.allocation_ledger?.find(l => l.amount > 0);
+
+       const hasWalletMovement = !!(wFrom || wTo);
+       const hasEnvelopeMovement = !!(aFrom || aTo);
+
+       if (hasWalletMovement) {
+           amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
+           color = 'text-blue-500';
+           if (!tx.description) title = 'Wallet Transfer';
+       } else if (hasEnvelopeMovement) {
+           amount = aFrom ? Math.abs(aFrom.amount) : (aTo ? aTo.amount : 0);
+           color = 'text-purple-400'; 
+           if (!tx.description) title = 'Envelope Transfer';
        }
     }
+
     return { title, amount, sign, color };
   };
 

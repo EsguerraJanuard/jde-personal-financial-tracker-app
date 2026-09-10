@@ -23,58 +23,62 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
   let personName = '';
   let personLabel = '';
 
-  // 1. Broad Semantic Interception (Bypasses trailing spaces or typos in the DB)
-  const isBorrow = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Borrowed'));
-  const isLend = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Lent'));
+  // 1. Unpack ledgers safely to handle Vercel's strict array types
+  const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+  const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+  const sWallet = Array.isArray(wFrom?.wallets) ? wFrom?.wallets[0] : wFrom?.wallets;
+  const dWallet = Array.isArray(wTo?.wallets) ? wTo?.wallets[0] : wTo?.wallets;
+
+  // 2. Broad Semantic Interception (Bypasses trailing spaces or legacy types)
+  const isBorrowOffset = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Borrowed'));
+  const isLendOffset = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Lent'));
+  const isLentToPerson = dWallet?.group_type === 'Utang Sakin (Receivable)';
+  const isBorrowedFromPerson = sWallet?.group_type === 'Utang Ko (Payable)';
   
-  // 2. Map Transactions
-  if (isBorrow || tx.type === 'BORROW') {
-     const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
-     const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+  // 3. Map Transactions & Decouple Contacts from Wallets
+  if (isBorrowOffset || tx.type === 'BORROW' || isBorrowedFromPerson) {
      mainAmount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
-     color = 'text-green-400';
+     color = 'text-green-500';
      typeLabel = 'Borrow';
-     personName = wFrom?.wallets?.name || 'Unknown';
+     personName = sWallet?.name || 'Unknown';
      personLabel = 'Lender';
-  } else if (isLend || tx.type === 'LEND') {
-     const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
-     const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+     toWallet = dWallet?.name || '';
+     toWalletLabel = 'To Wallet';
+  } else if (isLendOffset || tx.type === 'LEND' || isLentToPerson) {
      mainAmount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
-     color = 'text-red-400';
+     color = 'text-red-500';
      typeLabel = 'Lent';
-     personName = wTo?.wallets?.name || 'Unknown';
+     personName = dWallet?.name || 'Unknown';
      personLabel = 'Borrower';
+     fromWallet = sWallet?.name || ''; // Maintain origin wallet display
   } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'INCOME_DIRECT' || tx.type === 'MANUAL_ADJUSTMENT') {
      const w = tx.wallet_ledger?.find((l: any) => l.amount > 0);
      mainAmount = w ? w.amount : 0;
-     color = 'text-green-400';
+     color = 'text-green-500';
      typeLabel = tx.type === 'INCOME_SPLIT' ? 'Split Income' : 'Direct Income';
-     toWallet = w?.wallets?.name || 'Unknown';
+     toWallet = dWallet?.name || 'Unknown';
   } else if (tx.type === 'EXPENSE') {
      const w = tx.wallet_ledger?.find((l: any) => l.amount < 0);
      mainAmount = w ? Math.abs(w.amount) : 0;
      color = 'text-white';
      typeLabel = 'Expense';
-     fromWallet = w?.wallets?.name || 'Unknown';
+     fromWallet = sWallet?.name || 'Unknown';
   } else if (tx.type === 'SETTLE_DEBT') {
-     const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
-     const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
      mainAmount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
-     color = 'text-red-400';
+     color = 'text-red-500';
      typeLabel = 'Settle Debt';
-     personName = wTo?.wallets?.name || 'Unknown';
+     personName = dWallet?.name || 'Unknown';
      personLabel = 'Paid To';
+     fromWallet = sWallet?.name || '';
   } else if (tx.type === 'DEBT_COLLECTION') {
-     const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
-     const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
      mainAmount = wTo ? wTo.amount : (wFrom ? Math.abs(wFrom.amount) : 0);
-     color = 'text-green-400';
+     color = 'text-green-500';
      typeLabel = 'Debt Collection';
-     personName = wFrom?.wallets?.name || 'Unknown';
+     personName = sWallet?.name || 'Unknown';
      personLabel = 'Collected From';
+     toWallet = dWallet?.name || '';
+     toWalletLabel = 'To Wallet';
   } else if (tx.type === 'TRANSFER') {
-     const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
-     const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
      const aFrom = tx.allocation_ledger?.find((l: any) => l.amount < 0);
      const aTo = tx.allocation_ledger?.find((l: any) => l.amount > 0);
 
@@ -83,10 +87,10 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
 
      if (hasWalletMovement) {
          mainAmount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
-         color = 'text-blue-400';
+         color = 'text-blue-500';
          typeLabel = 'Wallet Transfer';
-         fromWallet = wFrom?.wallets?.name || 'Unknown';
-         toWallet = wTo?.wallets?.name || 'Unknown';
+         fromWallet = sWallet?.name || 'Unknown';
+         toWallet = dWallet?.name || 'Unknown';
          toWalletLabel = 'To Wallet';
      } else if (hasEnvelopeMovement) {
          mainAmount = aFrom ? Math.abs(aFrom.amount) : (aTo ? aTo.amount : 0);
@@ -95,7 +99,7 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
      }
   }
 
-  // 3. Bulletproof Metadata Filtering
+  // 4. Bulletproof Metadata Filtering
   const validAllocations = tx.allocation_ledger?.filter((l: any) => {
     const allocName = l.allocations?.name || '';
     return !allocName.includes('Lent') && !allocName.includes('Borrowed');
@@ -137,7 +141,7 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
           <div className="bg-black/50 rounded-2xl p-5 flex flex-col items-center justify-center gap-1 border border-neutral-800/50">
             <span className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Total Amount</span>
             <span className={`text-3xl font-bold tracking-tight ${color}`}>
-              ₱{mainAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {typeLabel === 'Lent' || typeLabel === 'Expense' || typeLabel === 'Settle Debt' ? '-' : (typeLabel === 'Borrow' || typeLabel === 'Direct Income' || typeLabel === 'Split Income' || typeLabel === 'Debt Collection' ? '+' : '')}₱{mainAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </span>
           </div>
 
@@ -155,14 +159,14 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
               </div>
             )}
 
-            {!personName && fromWallet && (
+            {fromWallet && (
               <div className="flex justify-between text-sm">
                 <span className="text-neutral-500 font-medium">From Wallet</span>
                 <span className="font-semibold text-neutral-200">{fromWallet}</span>
               </div>
             )}
 
-            {!personName && toWallet && (
+            {toWallet && (
               <div className="flex justify-between text-sm">
                 <span className="text-neutral-500 font-medium">{toWalletLabel}</span>
                 <span className="font-semibold text-neutral-200">{toWallet}</span>

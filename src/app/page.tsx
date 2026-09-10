@@ -7,12 +7,12 @@ export default async function Home() {
   const { data: wallets } = await supabase.from("wallet_balances").select("*").order("name");
   const { data: allocations } = await supabase.from("allocation_balances").select("*").order("name");
 
-  // Fetch recent transactions
+  // Fetch recent transactions (added group_type to wallets payload for UI parsing)
   const { data: recentTransactions } = await supabase
     .from('transactions')
     .select(`
       id, type, description, created_at,
-      wallet_ledger ( amount, wallets ( name ) ),
+      wallet_ledger ( amount, wallets ( name, group_type ) ),
       allocation_ledger ( amount, allocations ( name ) )
     `)
     .neq('description', 'Initial System Seeding')
