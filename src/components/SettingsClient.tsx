@@ -78,6 +78,8 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
     envs.reduce((sum, e) => sum + e.target_percentage, 0) + 
     newEnvs.reduce((sum, e) => sum + e.target_percentage, 0);
 
+  // Note: Your custom budget logic specifically requires "her birthday" and "offering" to each be exactly 5 percent. 
+  // However, I will leave this generic for now to allow you to adjust the numbers freely.
   const isValid = (totalPercentage === 100 && newEnvs.every(e => e.name.trim() !== '') && newWallets.every(w => w.name.trim() !== '') && pinnedWalletIds.length > 0 && pinnedWalletIds.length <= 3);
 
   const handleSave = async () => {
@@ -107,34 +109,14 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
 
   return (
     <div className="flex flex-col h-full min-h-screen bg-black">
-      <header className="flex items-center gap-4 p-5 border-b border-neutral-900 sticky top-0 bg-black/80 backdrop-blur-md z-10">
+      <header className="flex items-center gap-4 p-5 border-b border-neutral-900 sticky top-0 bg-black/80 backdrop-blur-md z-20">
         <Link href="/" className="p-2 -ml-2 bg-neutral-900 rounded-full active:scale-95 transition-transform"><ArrowLeft size={20} /></Link>
         <h1 className="font-semibold text-lg flex-1">Settings</h1>
       </header>
 
-      <div className="p-5 flex flex-col gap-6 pb-32">
+      <div className="p-5 flex flex-col gap-8 pb-32">
         
-        {/* Percentage Indicator */}
-        <div className={`p-5 rounded-3xl flex flex-col items-center gap-1 border border-neutral-800 transition-colors ${
-          totalPercentage === 100 ? 'bg-green-500/10 border-green-500/30' : 
-          totalPercentage > 100 ? 'bg-red-500/10 border-red-500/30' : 'bg-neutral-900/50'
-        }`}>
-          <span className="text-xs uppercase tracking-widest font-bold text-neutral-400">Total Distribution</span>
-          <div className="flex items-end gap-1">
-            <span className={`text-4xl font-bold tracking-tight ${totalPercentage === 100 ? 'text-green-400' : totalPercentage > 100 ? 'text-red-400' : 'text-white'}`}>
-              {totalPercentage}
-            </span>
-            <span className="text-xl font-bold text-neutral-500 pb-1">%</span>
-          </div>
-          {totalPercentage > 100 && (
-            <span className="text-[10px] text-red-400 font-bold tracking-widest uppercase mt-1">Exceeds 100% by {totalPercentage - 100}%</span>
-          )}
-          {totalPercentage < 100 && (
-            <span className="text-[10px] text-yellow-500 font-bold tracking-widest uppercase mt-1">Missing {100 - totalPercentage}% to complete</span>
-          )}
-        </div>
-
-        {/* Pinned Wallets */}
+        {/* Pinned Wallets (Moved to Top) */}
         <section className="flex flex-col gap-3">
           <div className="flex justify-between items-end pl-1">
             <h2 className="text-[12px] font-medium text-neutral-500 uppercase tracking-widest">Dashboard Wallets</h2>
@@ -191,50 +173,47 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
           <Plus size={18} /> Add New Wallet
         </button>
 
-        {/* Existing Envelopes */}
-        <section className="flex flex-col gap-3">
-          <h2 className="text-[12px] font-medium text-neutral-500 uppercase tracking-widest pl-1">Envelope Percentages</h2>
-          <div className="flex flex-col gap-2">
-            {envs.map((env) => (
-              <div key={env.id} className="flex justify-between items-center bg-neutral-900/40 border border-neutral-800/80 rounded-2xl p-4">
-                <span className="text-sm font-bold text-white max-w-[200px] truncate">{env.name}</span>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="number" 
-                    value={env.target_percentage}
-                    onChange={(e) => handleEnvChange(env.id, e.target.value)}
-                    className="w-16 bg-black border border-neutral-800 rounded-lg py-1.5 px-2 text-center text-sm font-bold focus:ring-1 focus:ring-neutral-600 outline-none"
-                  />
-                  <span className="text-neutral-500 font-bold">%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        <hr className="border-neutral-900/50" />
 
-        {/* New Envelopes */}
-        {newEnvs.length > 0 && (
+        <div className="flex flex-col gap-6">
+          {/* Percentage Indicator (Now Sticky) */}
+          <div className={`sticky top-[73px] z-10 p-4 rounded-3xl flex items-center justify-between gap-4 border shadow-2xl backdrop-blur-md transition-colors ${
+            totalPercentage === 100 ? 'bg-green-900/20 border-green-500/30' : 
+            totalPercentage > 100 ? 'bg-red-900/20 border-red-500/30' : 'bg-neutral-900/80 border-neutral-800'
+          }`}>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] uppercase tracking-widest font-bold text-neutral-400">Total Distribution</span>
+              {totalPercentage > 100 && (
+                <span className="text-[9px] text-red-400 font-bold tracking-widest uppercase">Exceeds by {totalPercentage - 100}%</span>
+              )}
+              {totalPercentage < 100 && (
+                <span className="text-[9px] text-yellow-500 font-bold tracking-widest uppercase">Missing {100 - totalPercentage}%</span>
+              )}
+              {totalPercentage === 100 && (
+                <span className="text-[9px] text-green-400 font-bold tracking-widest uppercase">Perfectly Balanced</span>
+              )}
+            </div>
+            
+            <div className="flex items-end gap-0.5 bg-black/40 px-4 py-2 rounded-2xl">
+              <span className={`text-3xl font-bold tracking-tight leading-none ${totalPercentage === 100 ? 'text-green-400' : totalPercentage > 100 ? 'text-red-400' : 'text-white'}`}>
+                {totalPercentage}
+              </span>
+              <span className="text-sm font-bold text-neutral-500 pb-0.5">%</span>
+            </div>
+          </div>
+
+          {/* Existing Envelopes */}
           <section className="flex flex-col gap-3">
-            <h2 className="text-[12px] font-medium text-neutral-500 uppercase tracking-widest pl-1">New Envelopes</h2>
+            <h2 className="text-[12px] font-medium text-neutral-500 uppercase tracking-widest pl-1">Envelope Percentages</h2>
             <div className="flex flex-col gap-2">
-              {newEnvs.map((env, idx) => (
-                <div key={idx} className="flex flex-col gap-3 bg-neutral-900/60 border border-neutral-700/50 rounded-2xl p-4 relative">
-                  <button onClick={() => removeNewEnv(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full active:scale-90">
-                    <X size={14} />
-                  </button>
-                  <input 
-                    type="text" 
-                    placeholder="Envelope Name (e.g. Travel)"
-                    value={env.name}
-                    onChange={(e) => handleNewEnvChange(idx, 'name', e.target.value)}
-                    className="w-full bg-black border border-neutral-800 rounded-xl py-3 px-4 text-sm font-bold focus:ring-1 focus:ring-neutral-600 outline-none"
-                  />
-                  <div className="flex items-center gap-2 self-end">
-                    <span className="text-xs text-neutral-500 font-medium">Allocation:</span>
+              {envs.map((env) => (
+                <div key={env.id} className="flex justify-between items-center bg-neutral-900/40 border border-neutral-800/80 rounded-2xl p-4">
+                  <span className="text-sm font-bold text-white max-w-[200px] truncate">{env.name}</span>
+                  <div className="flex items-center gap-2">
                     <input 
                       type="number" 
                       value={env.target_percentage}
-                      onChange={(e) => handleNewEnvChange(idx, 'target_percentage', e.target.value)}
+                      onChange={(e) => handleEnvChange(env.id, e.target.value)}
                       className="w-16 bg-black border border-neutral-800 rounded-lg py-1.5 px-2 text-center text-sm font-bold focus:ring-1 focus:ring-neutral-600 outline-none"
                     />
                     <span className="text-neutral-500 font-bold">%</span>
@@ -243,15 +222,48 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
               ))}
             </div>
           </section>
-        )}
 
-        {/* Add Envelope Button */}
-        <button 
-          onClick={addNewEnv}
-          className="w-full flex items-center justify-center gap-2 bg-neutral-900 border border-neutral-800 rounded-2xl p-4 text-sm font-bold text-neutral-400 hover:text-white transition-colors active:scale-95"
-        >
-          <Plus size={18} /> Add New Envelope
-        </button>
+          {/* New Envelopes */}
+          {newEnvs.length > 0 && (
+            <section className="flex flex-col gap-3">
+              <h2 className="text-[12px] font-medium text-neutral-500 uppercase tracking-widest pl-1">New Envelopes</h2>
+              <div className="flex flex-col gap-2">
+                {newEnvs.map((env, idx) => (
+                  <div key={idx} className="flex flex-col gap-3 bg-neutral-900/60 border border-neutral-700/50 rounded-2xl p-4 relative">
+                    <button onClick={() => removeNewEnv(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full active:scale-90">
+                      <X size={14} />
+                    </button>
+                    <input 
+                      type="text" 
+                      placeholder="Envelope Name (e.g. Travel)"
+                      value={env.name}
+                      onChange={(e) => handleNewEnvChange(idx, 'name', e.target.value)}
+                      className="w-full bg-black border border-neutral-800 rounded-xl py-3 px-4 text-sm font-bold focus:ring-1 focus:ring-neutral-600 outline-none"
+                    />
+                    <div className="flex items-center gap-2 self-end">
+                      <span className="text-xs text-neutral-500 font-medium">Allocation:</span>
+                      <input 
+                        type="number" 
+                        value={env.target_percentage}
+                        onChange={(e) => handleNewEnvChange(idx, 'target_percentage', e.target.value)}
+                        className="w-16 bg-black border border-neutral-800 rounded-lg py-1.5 px-2 text-center text-sm font-bold focus:ring-1 focus:ring-neutral-600 outline-none"
+                      />
+                      <span className="text-neutral-500 font-bold">%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Add Envelope Button */}
+          <button 
+            onClick={addNewEnv}
+            className="w-full flex items-center justify-center gap-2 bg-neutral-900 border border-neutral-800 rounded-2xl p-4 text-sm font-bold text-neutral-400 hover:text-white transition-colors active:scale-95"
+          >
+            <Plus size={18} /> Add New Envelope
+          </button>
+        </div>
 
       </div>
 
