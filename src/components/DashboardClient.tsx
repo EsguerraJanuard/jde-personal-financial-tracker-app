@@ -52,31 +52,39 @@ export default function DashboardClient({
     let amount = 0;
     let sign = '';
     let color = 'text-white';
-    let title = tx.description || tx.type.replace('_', ' ');
+    let title = tx.description || tx.type.replace(/_/g, ' ');
 
-    if (tx.wallet_ledger && tx.wallet_ledger.length > 0) {
-       // For Expense
-       if (tx.type === 'EXPENSE') {
-          const entry = tx.wallet_ledger.find((l: any) => l.amount < 0);
-          amount = entry ? Math.abs(entry.amount) : 0;
-          sign = '-';
-          color = 'text-white'; // or red-400
-       } 
-       // For Income
-       else if (tx.type === 'INCOME_SPLIT' || tx.type === 'MANUAL_ADJUSTMENT') {
-          const entry = tx.wallet_ledger.find((l: any) => l.amount > 0);
-          amount = entry ? entry.amount : 0;
-          sign = '+';
-          color = 'text-green-400';
-          if (!tx.description) title = 'Income';
-       }
-       // For Transfer / Lend
-       else if (tx.type === 'TRANSFER') {
-          const entry = tx.wallet_ledger[0];
-          amount = entry ? Math.abs(entry.amount) : 0;
-          color = 'text-blue-400';
-          if (!tx.description) title = 'Transfer';
-       }
+    if (tx.type === 'EXPENSE') {
+      const entry = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+      amount = entry ? Math.abs(entry.amount) : 0;
+      sign = '-';
+      color = 'text-white';
+    } 
+    else if (tx.type === 'INCOME_SPLIT' || tx.type === 'MANUAL_ADJUSTMENT') {
+      const entry = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+      amount = entry ? entry.amount : 0;
+      sign = '+';
+      color = 'text-green-400';
+      if (!tx.description) title = 'Income';
+    } 
+    else if (tx.type === 'TRANSFER') {
+      const wFrom = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+      const wTo = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+      const aFrom = tx.allocation_ledger?.find((l: any) => l.amount < 0);
+      const aTo = tx.allocation_ledger?.find((l: any) => l.amount > 0);
+
+      const hasWalletMovement = !!(wFrom || wTo);
+      const hasEnvelopeMovement = !!(aFrom || aTo);
+
+      if (hasWalletMovement) {
+        amount = wFrom ? Math.abs(wFrom.amount) : (wTo ? wTo.amount : 0);
+        color = 'text-blue-400';
+        if (!tx.description) title = 'Wallet Transfer';
+      } else if (hasEnvelopeMovement) {
+        amount = aFrom ? Math.abs(aFrom.amount) : (aTo ? aTo.amount : 0);
+        color = 'text-purple-400';
+        if (!tx.description) title = 'Envelope Transfer';
+      }
     }
 
     return { title, amount, sign, color };
