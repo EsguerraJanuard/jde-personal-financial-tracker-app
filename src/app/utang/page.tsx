@@ -4,13 +4,13 @@ import UtangClient from "@/components/UtangClient";
 export const revalidate = 0;
 
 export default async function UtangPage() {
-  const { data: wallets } = await supabase.from('wallets').select('*').order('name');
+  // Query wallet_balances view to ensure the balance property is included in the payload
+  const { data: wallets } = await supabase.from('wallet_balances').select('*').order('name');
   const { data: allocs } = await supabase.from('allocation_balances').select('*').order('name');
 
   const physicalWallets = wallets?.filter(w => w.group_type === 'Frequent') || [];
   const visibleAllocations = allocs?.filter(a => !a.name.includes('(Offset)')) || [];
 
-  // 1. Fetch ALL transactions to capture both New Explicit Loans and Old Legacy Transfers
   const { data: allTxs } = await supabase
     .from('transactions')
     .select(`
@@ -24,27 +24,23 @@ export default async function UtangPage() {
 
   allTxs?.forEach((tx: any) => {
      const personLedger = tx.wallet_ledger?.find((l: any) => {
-       // Safely unwrap the wallets object in case Supabase returns it as an array
        const w: any = Array.isArray(l.wallets) ? l.wallets[0] : l.wallets;
        return ['Utang Sakin (Receivable)', 'Utang Ko (Payable)'].includes(w?.group_type);
      });
      
      if (!personLedger) return;
      
-     // Explicitly cast to 'any' to clear Vercel's strict typechecking
      const walletInfo: any = Array.isArray(personLedger.wallets) ? personLedger.wallets[0] : personLedger.wallets;
      const personName = walletInfo?.name;
      const groupType = walletInfo?.group_type;
      const ledgerAmount = Number(personLedger.amount);
 
-     // 2. Identify if this transaction initiated a loan (Legacy or New)
      const isLend = groupType === 'Utang Sakin (Receivable)' && ledgerAmount > 0;
      const isBorrow = groupType === 'Utang Ko (Payable)' && ledgerAmount < 0;
 
      if (isLend || isBorrow) {
         const principalAmount = Math.abs(ledgerAmount);
         
-        // 3. Find explicit settlements linked to this specific loan
         const linkedSettlements = allTxs.filter((s: any) => s.parent_transaction_id === tx.id);
         
         const totalSettled = linkedSettlements.reduce((sum: number, sTx: any) => {

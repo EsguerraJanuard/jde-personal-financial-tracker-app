@@ -16,7 +16,6 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
 
   const activeList = activeTab === 'LENT' ? receivables : payables;
   
-  // Specific one-off exception boolean for Kuya ER
   const isKuyaERException = selectedLoan?.person_name?.toLowerCase() === 'kuya er';
 
   const handleOpenModal = (loan: any) => {
@@ -32,7 +31,6 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
     if (Number(amount) > selectedLoan.remaining) return setError('Cannot settle more than the remaining balance.');
     if (!walletId) return setError('Please select a physical wallet.');
     
-    // Bypass envelope validation exclusively for Kuya ER
     if (!isKuyaERException && !envelopeId) return setError('Please select an envelope.');
 
     setIsSubmitting(true);
@@ -46,7 +44,7 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
          amount: Number(amount),
          person_name: selectedLoan.person_name,
          wallet_id: walletId,
-         allocation_id: isKuyaERException ? undefined : envelopeId, // Ignored by backend if undefined
+         allocation_id: isKuyaERException ? undefined : envelopeId,
          parent_transaction_id: selectedLoan.id,
          description: `${type === 'DEBT_COLLECTION' ? 'Collected from' : 'Paid to'} ${selectedLoan.person_name}`
       });
@@ -166,7 +164,9 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
                      >
                        <option value="" disabled>Select Wallet</option>
                        {physicalWallets.map((w: any) => (
-                         <option key={w.id} value={w.id}>{w.name}</option>
+                         <option key={w.id} value={w.id}>
+                           {w.name} (₱{formatMoney(Number(w.balance || 0))})
+                         </option>
                        ))}
                      </select>
                   </div>
@@ -181,7 +181,9 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
                        >
                          <option value="" disabled>Select Envelope</option>
                          {allocations.map((a: any) => (
-                           <option key={a.id} value={a.id}>{a.name}</option>
+                           <option key={a.id} value={a.id}>
+                             {a.name} (₱{formatMoney(Number(a.balance || 0))})
+                           </option>
                          ))}
                        </select>
                     </div>
