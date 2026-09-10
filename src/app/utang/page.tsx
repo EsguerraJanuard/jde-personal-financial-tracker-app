@@ -22,20 +22,22 @@ export default async function UtangPage() {
   const activeReceivables: any[] = [];
   const activePayables: any[] = [];
 
-  allTxs?.forEach(tx => {
-     const personLedger = tx.wallet_ledger?.find((l: any) => 
-       ['Utang Sakin (Receivable)', 'Utang Ko (Payable)'].includes(l.wallets?.group_type)
-     );
+  allTxs?.forEach((tx: any) => {
+     const personLedger = tx.wallet_ledger?.find((l: any) => {
+       // Safely unwrap the wallets object in case Supabase returns it as an array
+       const w: any = Array.isArray(l.wallets) ? l.wallets[0] : l.wallets;
+       return ['Utang Sakin (Receivable)', 'Utang Ko (Payable)'].includes(w?.group_type);
+     });
      
      if (!personLedger) return;
      
-     const personName = personLedger.wallets.name;
-     const groupType = personLedger.wallets.group_type;
+     // Explicitly cast to 'any' to clear Vercel's strict typechecking
+     const walletInfo: any = Array.isArray(personLedger.wallets) ? personLedger.wallets[0] : personLedger.wallets;
+     const personName = walletInfo?.name;
+     const groupType = walletInfo?.group_type;
      const ledgerAmount = Number(personLedger.amount);
 
      // 2. Identify if this transaction initiated a loan (Legacy or New)
-     // - LEND: Increases Receivable (amount > 0)
-     // - BORROW: Decreases Payable (amount < 0)
      const isLend = groupType === 'Utang Sakin (Receivable)' && ledgerAmount > 0;
      const isBorrow = groupType === 'Utang Ko (Payable)' && ledgerAmount < 0;
 
@@ -43,10 +45,13 @@ export default async function UtangPage() {
         const principalAmount = Math.abs(ledgerAmount);
         
         // 3. Find explicit settlements linked to this specific loan
-        const linkedSettlements = allTxs.filter(s => s.parent_transaction_id === tx.id);
+        const linkedSettlements = allTxs.filter((s: any) => s.parent_transaction_id === tx.id);
         
-        const totalSettled = linkedSettlements.reduce((sum, sTx) => {
-           const sLedger = sTx.wallet_ledger?.find((l: any) => l.wallets?.name === personName);
+        const totalSettled = linkedSettlements.reduce((sum: number, sTx: any) => {
+           const sLedger = sTx.wallet_ledger?.find((l: any) => {
+             const sw: any = Array.isArray(l.wallets) ? l.wallets[0] : l.wallets;
+             return sw?.name === personName;
+           });
            return sum + (sLedger ? Math.abs(Number(sLedger.amount)) : 0);
         }, 0);
 
