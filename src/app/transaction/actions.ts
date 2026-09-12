@@ -162,9 +162,22 @@ export async function processTransaction(payload: any) {
        { transaction_id: txId, wallet_id, amount: amount }
      ]);
 
-     if (allocation_id) {
+     if (payload.destinations && payload.destinations.length > 0) {
+       const allocLedgers = [];
+       // The offset is credited back
+       allocLedgers.push({ transaction_id: txId, allocation_id: '05da18bc-f387-4be5-ad54-c6d924a15751', amount: -amount });
+       
+       for (const dest of payload.destinations) {
+         if (Number(dest.amount) > 0) {
+           allocLedgers.push({ transaction_id: txId, allocation_id: dest.allocation_id, amount: Number(dest.amount) });
+         }
+       }
+       await supabase.from('allocation_ledger').insert(allocLedgers);
+     } else if (allocation_id) {
+       // Legacy single-envelope fallback
        await supabase.from('allocation_ledger').insert([
-         { transaction_id: txId, allocation_id: allocation_id, amount: amount }
+         { transaction_id: txId, allocation_id: allocation_id, amount: amount },
+         { transaction_id: txId, allocation_id: '05da18bc-f387-4be5-ad54-c6d924a15751', amount: -amount }
        ]);
      }
   }

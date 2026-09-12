@@ -26,12 +26,26 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
     setError('');
   };
 
+  const numAmount = Number(amount || 0);
+  const hasKnownDestinations = activeTab === 'LENT' && selectedLoan?.defaultDestinations?.length > 0;
+  
+  let displayDestinations: any[] = [];
+  if (hasKnownDestinations) {
+     const totalDefault = selectedLoan.defaultDestinations.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
+     if (totalDefault > 0) {
+        displayDestinations = selectedLoan.defaultDestinations.map((d: any) => ({
+           allocation_id: d.allocation_id,
+           amount: ((Number(d.amount) / totalDefault) * numAmount).toFixed(2)
+        }));
+     }
+  }
+
   const handleSettle = async () => {
-    if (!amount || Number(amount) <= 0) return setError('Enter a valid amount.');
-    if (Number(amount) > selectedLoan.remaining) return setError('Cannot settle more than the remaining balance.');
+    if (!amount || numAmount <= 0) return setError('Enter a valid amount.');
+    if (numAmount > selectedLoan.remaining) return setError('Cannot settle more than the remaining balance.');
     if (!walletId) return setError('Please select a physical wallet.');
     
-    if (!isKuyaERException && !envelopeId) return setError('Please select an envelope.');
+    if (!hasKnownDestinations && !isKuyaERException && !envelopeId) return setError('Please select an envelope.');
 
     setIsSubmitting(true);
     setError('');
@@ -41,10 +55,11 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
     try {
       await processTransaction({
          type,
-         amount: Number(amount),
+         amount: numAmount,
          person_name: selectedLoan.person_name,
          wallet_id: walletId,
-         allocation_id: isKuyaERException ? undefined : envelopeId,
+         allocation_id: hasKnownDestinations || isKuyaERException ? undefined : envelopeId,
+         destinations: hasKnownDestinations ? displayDestinations : undefined,
          parent_transaction_id: selectedLoan.id,
          description: `${type === 'DEBT_COLLECTION' ? 'Collected from' : 'Paid to'} ${selectedLoan.person_name}`
       });
@@ -171,7 +186,7 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
                      </select>
                   </div>
                   
-                  {!isKuyaERException && (
+                  {!isKuyaERException && !hasKnownDestinations && (
                     <div className="flex flex-col gap-2">
                        <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest pl-1">Target Envelope</label>
                        <select 
@@ -187,6 +202,23 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
                          ))}
                        </select>
                     </div>
+                  )}
+
+                  {hasKnownDestinations && (
+                     <div className="flex flex-col gap-2 col-span-2">
+                       <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest pl-1">Returning To Original Envelopes (Auto)</label>
+                       <div className="flex flex-col gap-2 bg-black rounded-xl p-3 border border-neutral-800">
+                         {displayDestinations.map((dest, idx) => {
+                            const allocName = allocations.find((a: any) => a.id === dest.allocation_id)?.name || 'Unknown';
+                            return (
+                              <div key={idx} className="flex justify-between items-center text-sm font-medium">
+                                <span className="text-neutral-400">{allocName}</span>
+                                <span className="text-green-400">+₱{Number(dest.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                              </div>
+                            );
+                         })}
+                       </div>
+                     </div>
                   )}
                </div>
             </div>

@@ -21,7 +21,8 @@ export default async function UtangPage() {
     .from('transactions')
     .select(`
       id, type, parent_transaction_id, description, created_at,
-      wallet_ledger ( amount, wallets ( name, group_type ) )
+      wallet_ledger ( amount, wallets ( name, group_type ) ),
+      allocation_ledger ( amount, allocation_id )
     `)
     .order('created_at', { ascending: false });
 
@@ -60,6 +61,17 @@ export default async function UtangPage() {
         const remainingBalance = principalAmount - totalSettled;
 
         if (remainingBalance > 0) {
+           // Calculate default destinations (envelopes used in original transaction)
+           let defaultDestinations: any[] = [];
+           if (isLend && tx.allocation_ledger) {
+              defaultDestinations = tx.allocation_ledger
+                .filter((al: any) => Number(al.amount) < 0 && !OFFSET_IDS.includes(al.allocation_id))
+                .map((al: any) => ({
+                   allocation_id: al.allocation_id,
+                   amount: Math.abs(Number(al.amount)) // absolute amount originally taken
+                }));
+           }
+
            const loanRecord = {
               id: tx.id,
               person_name: personName,
@@ -67,7 +79,8 @@ export default async function UtangPage() {
               date: tx.created_at,
               principal: principalAmount,
               settled: totalSettled,
-              remaining: remainingBalance
+              remaining: remainingBalance,
+              defaultDestinations
            };
 
            if (isLend) activeReceivables.push(loanRecord);
