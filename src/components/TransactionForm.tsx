@@ -186,7 +186,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
               {tab === 'INCOME' ? 'To Wallet' : 'From Wallet'}
             </label>
             <Select value={walletId} onChange={(e: any) => setWalletId(e.target.value)}>
-              {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance).toLocaleString()})</option>)}
+              {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance || 0).toLocaleString()})</option>)}
             </Select>
           </div>
         )}
@@ -368,13 +368,13 @@ export default function TransactionForm({ wallets, allocations }: any) {
                 <div className="flex flex-col gap-2">
                   <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">From Wallet</label>
                   <Select value={walletId} onChange={(e: any) => { setWalletId(e.target.value); setErrors(prev => ({...prev, transfer: ''})); }}>
-                    {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance).toLocaleString()})</option>)}
+                    {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance || 0).toLocaleString()})</option>)}
                   </Select>
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">To Wallet</label>
                   <Select value={transferToWalletId} onChange={(e: any) => { setTransferToWalletId(e.target.value); setErrors(prev => ({...prev, transfer: ''})); }}>
-                    {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance).toLocaleString()})</option>)}
+                    {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance || 0).toLocaleString()})</option>)}
                   </Select>
                 </div>
               </>

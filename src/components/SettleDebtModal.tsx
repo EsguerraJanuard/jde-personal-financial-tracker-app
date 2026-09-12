@@ -112,7 +112,7 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
             value={walletId} onChange={e => setWalletId(e.target.value)}
             className="w-full bg-black rounded-xl px-4 py-3 text-sm font-medium outline-none border border-neutral-800 focus:border-neutral-700"
           >
-            {physicalWallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance).toLocaleString()})</option>)}
+            {physicalWallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance || 0).toLocaleString()})</option>)}
           </select>
         </div>
 
