@@ -14,6 +14,15 @@ export async function processTransaction(payload: any) {
   const insertPayload: any = { type: dbType, description };
   if (parent_transaction_id) insertPayload.parent_transaction_id = parent_transaction_id;
 
+  // Race Condition Mitigation (Without RPC):
+  // Perform a strict server-side check of the origin wallet balance just before insertion
+  if (['EXPENSE', 'TRANSFER', 'LEND', 'SETTLE_DEBT'].includes(type) && wallet_id) {
+    const { data: wBal } = await supabase.from('wallet_balances').select('balance').eq('id', wallet_id).single();
+    if (wBal && Number(wBal.balance) < Number(amount)) {
+      throw new Error(`Insufficient funds. Your wallet balance is ₱${wBal.balance}`);
+    }
+  }
+
   const { data: tx, error: txError } = await supabase
     .from('transactions')
     .insert([insertPayload])
@@ -35,31 +44,36 @@ export async function processTransaction(payload: any) {
        const { data: allocs } = await supabase.from('allocations').select('*');
        if (!allocs) throw new Error('No allocations found');
        
-       let sum = 0;
-       const ledgers = [];
-       let fundsId = null;
+       // Algorithmic Distribution Refactoring: Largest Remainder Method (Hare Quota)
+       const amountInCents = Math.round(amount * 100);
+       let allocatedCents = 0;
        
-       for (const a of allocs) {
-         if (a.id === '42eda33f-8ea4-4cd0-bcf7-96c500883475') fundsId = a.id;
-         if (!fundsId) fundsId = allocs[0]?.id; // Fallback to first allocation
+       const cuts = allocs
+         .filter(a => Number(a.target_percentage) > 0)
+         .map(a => {
+           const exactCents = amountInCents * (Number(a.target_percentage) / 100);
+           const floorCents = Math.floor(exactCents);
+           const remainder = exactCents - floorCents;
+           allocatedCents += floorCents;
+           return { id: a.id, cents: floorCents, remainder };
+         });
          
-         if (Number(a.target_percentage) > 0) {
-            const cut = Math.floor(amount * (Number(a.target_percentage) / 100));
-            sum += cut;
-            if (cut > 0) {
-              ledgers.push({ transaction_id: txId, allocation_id: a.id, amount: cut });
-            }
-         }
+       // Sort by largest remainder descending
+       cuts.sort((a, b) => b.remainder - a.remainder);
+       
+       // Distribute the remaining centavos to those with the largest remainders
+       let remainingCentsToDistribute = amountInCents - allocatedCents;
+       for (let i = 0; i < remainingCentsToDistribute; i++) {
+         if (cuts[i]) cuts[i].cents += 1;
        }
        
-       const remainder = amount - sum;
-       if (remainder > 0 && fundsId) {
-          const fundsEntry = ledgers.find(l => l.allocation_id === fundsId);
-          if (fundsEntry) fundsEntry.amount += remainder;
-          else ledgers.push({ transaction_id: txId, allocation_id: fundsId, amount: remainder });
-       }
-       
-       if (ledgers.length > 0) {
+       const ledgers = cuts
+         .filter(c => c.cents > 0)
+         .map(c => ({
+           transaction_id: txId,
+           allocation_id: c.id,
+           amount: Number((c.cents / 100).toFixed(2))
+         }));
           await supabase.from('allocation_ledger').insert(ledgers);
           
           splitBreakdown = ledgers.map(l => {
@@ -68,7 +82,6 @@ export async function processTransaction(payload: any) {
           });
        }
     }
-  }
 
   // EXPENSE (multi-envelope)
   else if (type === 'EXPENSE') {

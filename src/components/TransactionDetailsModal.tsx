@@ -29,9 +29,15 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
   const sWallet = Array.isArray(wFrom?.wallets) ? wFrom?.wallets[0] : wFrom?.wallets;
   const dWallet = Array.isArray(wTo?.wallets) ? wTo?.wallets[0] : wTo?.wallets;
 
-  // 2. Broad Semantic Interception (Bypasses trailing spaces or legacy types)
-  const isBorrowOffset = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Borrowed'));
-  const isLendOffset = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Lent'));
+  // 2. Strict UUID Interception (Bypasses volatile string matching)
+  const OFFSET_IDS = [
+    '05da18bc-f387-4be5-ad54-c6d924a15751', // Lent Money (Offset)
+    '70736863-3ec1-4630-9487-077deda5cfe0', // Borrowed Money (Offset)
+    '43f7c93e-37e6-4480-85b4-7557bb8e06fb'  // Legacy Mama (Offset)
+  ];
+  
+  const isBorrowOffset = tx.allocation_ledger?.some((l: any) => l.allocation_id === '70736863-3ec1-4630-9487-077deda5cfe0' || l.allocation_id === '43f7c93e-37e6-4480-85b4-7557bb8e06fb');
+  const isLendOffset = tx.allocation_ledger?.some((l: any) => l.allocation_id === '05da18bc-f387-4be5-ad54-c6d924a15751');
   const isLentToPerson = dWallet?.group_type === 'Utang Sakin (Receivable)';
   const isBorrowedFromPerson = sWallet?.group_type === 'Utang Ko (Payable)';
   
@@ -101,8 +107,7 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
 
   // 4. Bulletproof Metadata Filtering
   const validAllocations = tx.allocation_ledger?.filter((l: any) => {
-    const allocName = l.allocations?.name || '';
-    return !allocName.includes('Lent') && !allocName.includes('Borrowed');
+    return !OFFSET_IDS.includes(l.allocation_id);
   }) || [];
 
   const handleConfirmDelete = async () => {
@@ -124,13 +129,17 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
           {/* Header */}
           <div className="flex justify-between items-start">
             <div className="flex flex-col">
-              <h3 className="text-lg font-bold tracking-tight capitalize text-white">{tx.description || typeLabel}</h3>
+              <h3 className={`text-lg font-bold tracking-tight capitalize ${tx.description?.startsWith('[REVERSAL]') ? 'text-red-500' : 'text-white'}`}>
+                {tx.description || typeLabel}
+              </h3>
               <span className="text-[11px] text-neutral-500 font-semibold tracking-wider uppercase">{dateStr} • {timeStr}</span>
             </div>
             <div className="flex items-center gap-2 -mt-2 -mr-2">
-              <button onClick={() => setShowConfirmDelete(true)} className="p-2 text-neutral-500 hover:text-red-500 transition-colors bg-neutral-800/50 rounded-full active:scale-90">
-                <Trash2 size={18} />
-              </button>
+              {!tx.description?.startsWith('[REVERSAL]') && (
+                <button onClick={() => setShowConfirmDelete(true)} className="p-2 text-neutral-500 hover:text-red-500 transition-colors bg-neutral-800/50 rounded-full active:scale-90">
+                  <Trash2 size={18} />
+                </button>
+              )}
               <button onClick={() => onClose()} className="p-2 text-neutral-500 hover:text-white transition-colors bg-neutral-800/50 rounded-full active:scale-90">
                 <X size={18} />
               </button>
@@ -139,8 +148,10 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
 
           {/* Amount Box */}
           <div className="bg-black/50 rounded-2xl p-5 flex flex-col items-center justify-center gap-1 border border-neutral-800/50">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Total Amount</span>
-            <span className={`text-3xl font-bold tracking-tight ${color}`}>
+            <span className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">
+              {tx.description?.startsWith('[REVERSAL]') ? 'Reversed Amount' : 'Total Amount'}
+            </span>
+            <span className={`text-3xl font-bold tracking-tight ${tx.description?.startsWith('[REVERSAL]') ? 'text-red-500/50 line-through' : color}`}>
               {typeLabel === 'Lent' || typeLabel === 'Expense' || typeLabel === 'Settle Debt' ? '-' : (typeLabel === 'Borrow' || typeLabel === 'Direct Income' || typeLabel === 'Split Income' || typeLabel === 'Debt Collection' ? '+' : '')}₱{mainAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </span>
           </div>

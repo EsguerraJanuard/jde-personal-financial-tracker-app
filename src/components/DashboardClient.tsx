@@ -63,9 +63,9 @@ export default function DashboardClient({
     const sWallet = Array.isArray(wFrom?.wallets) ? wFrom?.wallets[0] : wFrom?.wallets;
     const dWallet = Array.isArray(wTo?.wallets) ? wTo?.wallets[0] : wTo?.wallets;
 
-    // 1. Broad Semantic Interception for Debt offsets
-    const isBorrowOffset = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Borrowed'));
-    const isLendOffset = tx.allocation_ledger?.some((l: any) => (l.allocations?.name || '').includes('Lent'));
+    // 1. Broad Semantic Interception for Debt offsets (UUID Bound)
+    const isBorrowOffset = tx.allocation_ledger?.some((l: any) => ['70736863-3ec1-4630-9487-077deda5cfe0', '43f7c93e-37e6-4480-85b4-7557bb8e06fb'].includes(l.allocation_id));
+    const isLendOffset = tx.allocation_ledger?.some((l: any) => l.allocation_id === '05da18bc-f387-4be5-ad54-c6d924a15751');
     
     // 2. DECOUPLING LOGIC: Explicitly identify if the destination or source is a human contact
     const isLentToPerson = dWallet?.group_type === 'Utang Sakin (Receivable)';

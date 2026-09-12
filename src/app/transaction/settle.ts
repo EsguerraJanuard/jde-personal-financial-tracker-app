@@ -14,6 +14,14 @@ export async function processSettlement({
   
   if (amount <= 0) throw new Error("Invalid amount");
 
+  // Race Condition Mitigation (Without RPC)
+  if (!isReceivable && physicalWalletId) {
+     const { data: wBal } = await supabase.from('wallet_balances').select('balance').eq('id', physicalWalletId).single();
+     if (wBal && Number(wBal.balance) < Number(amount)) {
+        throw new Error(`Insufficient funds. Your wallet balance is ₱${wBal.balance}`);
+     }
+  }
+
   const { data: tx, error: txError } = await supabase.from('transactions').insert([{
     type: 'TRANSFER',
     description: isReceivable ? 'Received Debt Payment' : 'Paid Debt',
@@ -34,13 +42,7 @@ export async function processSettlement({
   await supabase.from('wallet_ledger').insert(wLedger);
 
   // 2. Update Envelopes (Allocations)
-  const offsetName = isReceivable ? 'Lent Money (Offset)' : 'Borrowed Money (Offset)';
-  let { data: offsetAlloc } = await supabase.from('allocations').select('id').eq('name', offsetName).single();
-  if (!offsetAlloc) {
-     const { data: newAlloc } = await supabase.from('allocations').insert([{ name: offsetName, target_percentage: 0 }]).select('id').single();
-     if (newAlloc) offsetAlloc = newAlloc;
-  }
-  const offsetId = offsetAlloc?.id;
+  const offsetId = isReceivable ? '05da18bc-f387-4be5-ad54-c6d924a15751' : '70736863-3ec1-4630-9487-077deda5cfe0';
 
   const aLedger = [];
   
