@@ -8,8 +8,14 @@ export default async function UtangPage() {
   const { data: wallets } = await supabase.from('wallet_balances').select('*').order('name');
   const { data: allocs } = await supabase.from('allocation_balances').select('*').order('name');
 
+  const OFFSET_IDS = [
+    '05da18bc-f387-4be5-ad54-c6d924a15751', 
+    '70736863-3ec1-4630-9487-077deda5cfe0', 
+    '43f7c93e-37e6-4480-85b4-7557bb8e06fb'
+  ];
+  
   const physicalWallets = wallets?.filter(w => w.group_type === 'Frequent') || [];
-  const visibleAllocations = allocs?.filter(a => !a.name.includes('(Offset)')) || [];
+  const visibleAllocations = allocs?.filter(a => !OFFSET_IDS.includes(a.id)) || [];
 
   const { data: allTxs } = await supabase
     .from('transactions')
