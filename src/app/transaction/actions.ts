@@ -40,7 +40,9 @@ export async function processTransaction(payload: any) {
        let fundsId = null;
        
        for (const a of allocs) {
-         if (a.name === 'Funds') fundsId = a.id;
+         if (a.id === '42eda33f-8ea4-4cd0-bcf7-96c500883475') fundsId = a.id;
+         if (!fundsId) fundsId = allocs[0]?.id; // Fallback to first allocation
+         
          if (Number(a.target_percentage) > 0) {
             const cut = Math.floor(amount * (Number(a.target_percentage) / 100));
             sum += cut;

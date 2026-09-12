@@ -9,11 +9,11 @@ export async function saveSettings({ updates, newEnvelopes, pinnedWalletIds, new
   pinnedWalletIds: string[];
   newWallets?: { name: string }[];
 }) {
-  // 1. Update existing envelope percentages
+  // 1. Update existing envelope percentages and names
   for (const env of updates) {
     const { error } = await supabase
       .from('allocations')
-      .update({ target_percentage: env.target_percentage })
+      .update({ target_percentage: env.target_percentage, name: env.name })
       .eq('id', env.id);
     if (error) throw new Error(error.message);
   }

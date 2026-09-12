@@ -9,6 +9,7 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
   const [walletId, setWalletId] = useState(physicalWallets[0]?.id || '');
   const [destinations, setDestinations] = useState<any[]>([]);
   const [isSplit, setIsSplit] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Initialize destinations and amount when person changes
   useEffect(() => {
@@ -111,7 +112,7 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
             value={walletId} onChange={e => setWalletId(e.target.value)}
             className="w-full bg-black rounded-xl px-4 py-3 text-sm font-medium outline-none border border-neutral-800 focus:border-neutral-700"
           >
-            {physicalWallets.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
+            {physicalWallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance).toLocaleString()})</option>)}
           </select>
         </div>
 
@@ -163,13 +164,59 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
 
         {/* Submit */}
         <button 
-          onClick={handleSettle} disabled={loading}
+          onClick={() => setShowConfirm(true)} disabled={loading}
           className="mt-2 w-full py-4 rounded-xl font-bold text-[13px] uppercase tracking-widest text-black bg-white hover:bg-neutral-200 transition-colors active:scale-95 disabled:opacity-50"
         >
-          {loading ? 'Processing...' : 'Confirm Settlement'}
+          Review Settlement
         </button>
 
       </div>
+      
+      {/* CONFIRMATION MODAL */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-5 bg-black/90 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-3xl p-6 flex flex-col gap-6 shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden">
+            <div className="text-center">
+              <h3 className="text-xl font-bold tracking-tight text-white">Confirm Settlement</h3>
+              <p className="text-neutral-400 text-xs mt-1">Please review the settlement details.</p>
+            </div>
+            
+            <div className="bg-black/50 rounded-2xl p-5 flex flex-col gap-4 border border-neutral-800/50">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-neutral-500 font-medium">Type</span>
+                <span className="font-bold text-white uppercase text-xs">{isReceivable ? 'Receive Payment' : 'Pay Debt'}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-neutral-500 font-medium">Person</span>
+                <span className="font-bold text-white capitalize">{person.name}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-neutral-500 font-medium">Amount</span>
+                <span className="font-bold text-xl text-white">₱{Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-neutral-500 font-medium">Wallet</span>
+                <span className="font-medium text-white">{physicalWallets.find((w: any) => w.id === walletId)?.name}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-2">
+              <button 
+                onClick={() => setShowConfirm(false)} disabled={loading}
+                className="flex-1 py-3.5 rounded-xl font-semibold text-sm text-neutral-400 bg-neutral-800 hover:text-white transition-colors active:scale-95"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSettle} disabled={loading}
+                className="flex-1 py-3.5 rounded-xl font-bold text-sm text-black bg-white hover:bg-neutral-200 transition-colors active:scale-95"
+              >
+                {loading ? 'Processing...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

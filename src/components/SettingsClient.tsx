@@ -30,10 +30,18 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
     });
   };
 
-  const handleEnvChange = (id: string, value: string) => {
-    let num = Number(value);
-    if (isNaN(num)) num = 0;
-    setEnvs(prev => prev.map(e => e.id === id ? { ...e, target_percentage: num } : e));
+  const handleEnvChange = (id: string, field: string, value: string) => {
+    setEnvs(prev => prev.map(e => {
+      if (e.id === id) {
+        if (field === 'target_percentage') {
+          let num = Number(value);
+          if (isNaN(num)) num = 0;
+          return { ...e, target_percentage: num };
+        }
+        return { ...e, [field]: value };
+      }
+      return e;
+    }));
   };
 
   const handleNewEnvChange = (index: number, field: string, value: string) => {
@@ -80,7 +88,7 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
 
   // Note: Your custom budget logic specifically requires "her birthday" and "offering" to each be exactly 5 percent. 
   // However, I will leave this generic for now to allow you to adjust the numbers freely.
-  const isValid = (totalPercentage === 100 && newEnvs.every(e => e.name.trim() !== '') && newWallets.every(w => w.name.trim() !== '') && pinnedWalletIds.length > 0 && pinnedWalletIds.length <= 3);
+  const isValid = (totalPercentage === 100 && envs.every(e => e.name.trim() !== '') && newEnvs.every(e => e.name.trim() !== '') && newWallets.every(w => w.name.trim() !== '') && pinnedWalletIds.length > 0 && pinnedWalletIds.length <= 3);
 
   const handleSave = async () => {
     if (!isValid) return;
@@ -90,7 +98,7 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
     try {
       const updates = envs.filter(e => {
         const original = allocations.find(a => a.id === e.id);
-        return original && original.target_percentage !== e.target_percentage;
+        return original && (original.target_percentage !== e.target_percentage || original.name !== e.name);
       });
 
       await saveSettings({
@@ -207,13 +215,19 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
             <h2 className="text-[12px] font-medium text-neutral-500 uppercase tracking-widest pl-1">Envelope Percentages</h2>
             <div className="flex flex-col gap-2">
               {envs.map((env) => (
-                <div key={env.id} className="flex justify-between items-center bg-neutral-900/40 border border-neutral-800/80 rounded-2xl p-4">
-                  <span className="text-sm font-bold text-white max-w-[200px] truncate">{env.name}</span>
+                <div key={env.id} className="flex justify-between items-center bg-neutral-900/40 border border-neutral-800/80 rounded-2xl p-4 gap-2">
+                  <input 
+                    type="text" 
+                    value={env.name}
+                    onChange={(e) => handleEnvChange(env.id, 'name', e.target.value)}
+                    className="w-full bg-black border border-neutral-800 rounded-lg py-1.5 px-3 text-sm font-bold text-white focus:ring-1 focus:ring-neutral-600 outline-none"
+                    placeholder="Envelope Name"
+                  />
                   <div className="flex items-center gap-2">
                     <input 
                       type="number" 
                       value={env.target_percentage}
-                      onChange={(e) => handleEnvChange(env.id, e.target.value)}
+                      onChange={(e) => handleEnvChange(env.id, 'target_percentage', e.target.value)}
                       className="w-16 bg-black border border-neutral-800 rounded-lg py-1.5 px-2 text-center text-sm font-bold focus:ring-1 focus:ring-neutral-600 outline-none"
                     />
                     <span className="text-neutral-500 font-bold">%</span>

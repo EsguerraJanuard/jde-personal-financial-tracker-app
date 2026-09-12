@@ -20,13 +20,13 @@ export default function DashboardClient({
   const [selectedTx, setSelectedTx] = useState<any>(null);
 
   const visibleAllocations = allocations
-    .filter((a: any) => Number(a.target_percentage) > 0 || a.name.toLowerCase().includes('school allowance'))
+    .filter((a: any) => Number(a.target_percentage) > 0 || a.id === '806ce394-6312-4aac-9fda-5cced33ca4cf')
     .sort((a: any, b: any) => {
-      const aIsSchool = a.name.toLowerCase().includes('school allowance');
-      const bIsSchool = b.name.toLowerCase().includes('school allowance');
+      const aIsSchool = a.id === '806ce394-6312-4aac-9fda-5cced33ca4cf';
+      const bIsSchool = b.id === '806ce394-6312-4aac-9fda-5cced33ca4cf';
       if (aIsSchool && !bIsSchool) return -1;
       if (!aIsSchool && bIsSchool) return 1;
-      return Number(b.balance) - Number(a.balance);
+      return a.name.localeCompare(b.name);
     });
 
   const formatMoney = (amount: number) => {
