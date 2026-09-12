@@ -12,6 +12,7 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
   const [walletId, setWalletId] = useState('');
   const [envelopeId, setEnvelopeId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState('');
 
   const activeList = activeTab === 'LENT' ? receivables : payables;
@@ -24,6 +25,7 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
     setWalletId(physicalWallets[0]?.id || '');
     setEnvelopeId(allocations[0]?.id || '');
     setError('');
+    setShowConfirm(false);
   };
 
   const numAmount = Number(amount || 0);
@@ -65,6 +67,7 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
       });
       
       setSelectedLoan(null);
+      setShowConfirm(false);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -229,19 +232,51 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
               </div>
             )}
 
-            <button 
-              onClick={handleSettle}
-              disabled={isSubmitting}
-              className={`w-full py-4 rounded-2xl font-bold tracking-wide flex items-center justify-center gap-2 transition-all active:scale-95 ${
-                 activeTab === 'LENT' ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'
-              } disabled:opacity-50 disabled:pointer-events-none`}
-            >
-              {isSubmitting ? 'Processing...' : (
-                 <>
-                   <CheckCircle size={18} /> {activeTab === 'LENT' ? 'Confirm Collection' : 'Confirm Payment'}
-                 </>
-              )}
-            </button>
+            {!showConfirm ? (
+              <button 
+                onClick={() => {
+                  if (!amount || numAmount <= 0) return setError('Enter a valid amount.');
+                  if (numAmount > selectedLoan.remaining) return setError('Cannot settle more than the remaining balance.');
+                  if (!walletId) return setError('Please select a physical wallet.');
+                  if (!hasKnownDestinations && !isKuyaERException && !envelopeId) return setError('Please select an envelope.');
+                  setError('');
+                  setShowConfirm(true);
+                }}
+                disabled={isSubmitting}
+                className={`w-full py-4 rounded-2xl font-bold tracking-wide flex items-center justify-center gap-2 transition-all active:scale-95 ${
+                   activeTab === 'LENT' ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'
+                } disabled:opacity-50 disabled:pointer-events-none`}
+              >
+                 <CheckCircle size={18} /> Review {activeTab === 'LENT' ? 'Collection' : 'Payment'}
+              </button>
+            ) : (
+              <div className="flex flex-col gap-3 mt-2 animate-in fade-in zoom-in-95 duration-200">
+                <div className="bg-black/50 border border-neutral-800 rounded-xl p-4 text-center">
+                  <p className="text-xs text-neutral-400 font-medium mb-1">Are you sure?</p>
+                  <p className="text-sm font-bold text-white">
+                    {activeTab === 'LENT' ? 'Collecting' : 'Paying'} ₱{numAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setShowConfirm(false)}
+                    disabled={isSubmitting}
+                    className="flex-1 py-3.5 rounded-xl font-semibold text-sm text-neutral-400 bg-neutral-800 hover:text-white transition-colors active:scale-95"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleSettle}
+                    disabled={isSubmitting}
+                    className={`flex-1 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors active:scale-95 ${
+                      activeTab === 'LENT' ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'
+                    }`}
+                  >
+                    {isSubmitting ? '...' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

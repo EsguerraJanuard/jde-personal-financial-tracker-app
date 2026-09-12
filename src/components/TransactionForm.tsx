@@ -410,7 +410,8 @@ export default function TransactionForm({ wallets, allocations }: any) {
 
         {/* SUBMIT */}
         <button 
-          type="submit"
+          type="button"
+          onClick={handleSubmit}
           disabled={loading}
           className="mt-4 mb-4 bg-white text-black font-bold rounded-2xl py-4 text-[13px] uppercase tracking-widest shadow-lg shadow-white/5 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
         >
