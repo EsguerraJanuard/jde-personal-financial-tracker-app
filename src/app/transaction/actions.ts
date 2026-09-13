@@ -3,6 +3,29 @@
 import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
 
+export async function resolvePersonWallet(person_name: string, group_type: string) {
+  const cleanName = person_name.replace(/\u200B/g, '').trim().toLowerCase();
+  
+  // 1. Check if it already exists in the target group
+  const { data: groupWallets } = await supabase.from('wallets').select('id, name').eq('group_type', group_type);
+  const existing = groupWallets?.find(w => w.name.replace(/\u200B/g, '').trim().toLowerCase() === cleanName);
+  if (existing) return existing.id;
+  
+  // 2. Need to create a new one. Ensure global uniqueness by appending \u200B
+  const { data: allWallets } = await supabase.from('wallets').select('name');
+  const takenNames = new Set(allWallets?.map(w => w.name) || []);
+  
+  let finalName = person_name.replace(/\u200B/g, '').trim();
+  while (takenNames.has(finalName)) {
+    finalName += '\u200B';
+  }
+  
+  const { data: newWallet, error } = await supabase.from('wallets').insert([{ name: finalName, group_type }]).select('id').single();
+  if (error) throw new Error(error.message);
+  
+  return newWallet.id;
+}
+
 export async function processTransaction(payload: any) {
   const { type, amount, wallet_id, allocation_id, person_name, lend_sources, expense_sources, description, is_direct, parent_transaction_id } = payload;
   
@@ -102,18 +125,11 @@ export async function processTransaction(payload: any) {
 
   // LEND (Isolated Lifecycle)
   else if (type === 'LEND') {
-     // Strict lookup: Only searches the Receivable category
-     let { data: personWallet } = await supabase.from('wallets').select('id').eq('name', person_name.trim()).eq('group_type', 'Utang Sakin (Receivable)').maybeSingle();
-     
-     if (!personWallet) {
-       const { data: newWallet, error } = await supabase.from('wallets').insert([{ name: person_name.trim(), group_type: 'Utang Sakin (Receivable)' }]).select('id').single();
-       if (error) throw new Error(error.message);
-       personWallet = newWallet;
-     }
+     const personWalletId = await resolvePersonWallet(person_name, 'Utang Sakin (Receivable)');
 
      await supabase.from('wallet_ledger').insert([
        { transaction_id: txId, wallet_id, amount: -amount },
-       { transaction_id: txId, wallet_id: personWallet.id, amount: amount }
+       { transaction_id: txId, wallet_id: personWalletId, amount: amount }
      ]);
      
      if (lend_sources && lend_sources.length > 0) {
@@ -131,30 +147,22 @@ export async function processTransaction(payload: any) {
 
   // BORROW (Isolated Lifecycle)
   else if (type === 'BORROW') {
-     // Strict lookup: Only searches the Payable category
-     let { data: personWallet } = await supabase.from('wallets').select('id').eq('name', person_name.trim()).eq('group_type', 'Utang Ko (Payable)').maybeSingle();
-     
-     if (!personWallet) {
-       const { data: newWallet, error } = await supabase.from('wallets').insert([{ name: person_name.trim(), group_type: 'Utang Ko (Payable)' }]).select('id').single();
-       if (error) throw new Error(error.message);
-       personWallet = newWallet;
-     }
+     const personWalletId = await resolvePersonWallet(person_name, 'Utang Ko (Payable)');
 
      // STRICT STATIC LEDGER ENTRY: 
      // We completely bypass physical wallet and envelope insertions for a Borrow record.
      // It only logs the debt (Negative balance indicates we owe them).
      await supabase.from('wallet_ledger').insert([
-       { transaction_id: txId, wallet_id: personWallet.id, amount: -amount }
+       { transaction_id: txId, wallet_id: personWalletId, amount: -amount }
      ]);
   }
 
   // EXPLICIT DEBT COLLECTION (Receiving payback)
   else if (type === 'DEBT_COLLECTION') {
-     let { data: personWallet } = await supabase.from('wallets').select('id').eq('name', person_name.trim()).eq('group_type', 'Utang Sakin (Receivable)').single();
-     if (!personWallet) throw new Error('Receivable wallet not found for settlement.');
+     const personWalletId = await resolvePersonWallet(person_name, 'Utang Sakin (Receivable)');
 
      await supabase.from('wallet_ledger').insert([
-       { transaction_id: txId, wallet_id: personWallet.id, amount: -amount },
+       { transaction_id: txId, wallet_id: personWalletId, amount: -amount },
        { transaction_id: txId, wallet_id, amount: amount }
      ]);
 
@@ -180,11 +188,10 @@ export async function processTransaction(payload: any) {
 
   // EXPLICIT SETTLE DEBT (Paying off a loan)
   else if (type === 'SETTLE_DEBT') {
-     let { data: personWallet } = await supabase.from('wallets').select('id').eq('name', person_name.trim()).eq('group_type', 'Utang Ko (Payable)').single();
-     if (!personWallet) throw new Error('Payable wallet not found for settlement.');
+     const personWalletId = await resolvePersonWallet(person_name, 'Utang Ko (Payable)');
 
      await supabase.from('wallet_ledger').insert([
-       { transaction_id: txId, wallet_id: personWallet.id, amount: amount },
+       { transaction_id: txId, wallet_id: personWalletId, amount: amount },
        { transaction_id: txId, wallet_id, amount: -amount }
      ]);
 
