@@ -140,16 +140,12 @@ export async function processTransaction(payload: any) {
        personWallet = newWallet;
      }
 
+     // STRICT STATIC LEDGER ENTRY: 
+     // We completely bypass physical wallet and envelope insertions for a Borrow record.
+     // It only logs the debt (Negative balance indicates we owe them).
      await supabase.from('wallet_ledger').insert([
-       { transaction_id: txId, wallet_id: personWallet.id, amount: -amount },
-       { transaction_id: txId, wallet_id, amount: amount } 
+       { transaction_id: txId, wallet_id: personWallet.id, amount: -amount }
      ]);
-
-     if (allocation_id) {
-        await supabase.from('allocation_ledger').insert([
-          { transaction_id: txId, allocation_id: allocation_id, amount: amount }
-        ]);
-     }
   }
 
   // EXPLICIT DEBT COLLECTION (Receiving payback)
