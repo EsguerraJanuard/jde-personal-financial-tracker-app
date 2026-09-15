@@ -67,7 +67,11 @@ export default function HistoryClient() {
     setIsDeleting(true);
     try {
       await deleteTransaction(txToDelete);
-      setTransactions(prev => prev.filter(tx => tx.id !== txToDelete));
+      
+      // We don't remove it visually, we let a re-fetch happen or we manually inject a mocked reversal
+      // To keep it perfectly synced, refetching is safest for double-entry updates
+      await fetchTransactions();
+      
       setTxToDelete(null);
       setSelectedTx(null);
     } catch (err: any) {
@@ -168,6 +172,20 @@ export default function HistoryClient() {
     });
   }, [transactions, searchQuery]);
 
+  // Dynamically map UUIDs of successfully reversed transactions to hide their delete buttons
+  const reversedIds = useMemo(() => {
+    const ids = new Set<string>();
+    transactions.forEach(tx => {
+      if (tx.description?.startsWith('[REVERSAL] ')) {
+        const parts = tx.description.split(' ');
+        if (parts.length > 1) {
+          ids.add(parts[1]); // The embedded UUID of the original transaction
+        }
+      }
+    });
+    return ids;
+  }, [transactions]);
+
   return (
     <div className="flex flex-col h-full min-h-screen bg-black">
       <header className="flex items-center gap-4 p-5 border-b border-neutral-900 sticky top-0 bg-black/80 backdrop-blur-md z-10">
@@ -224,16 +242,18 @@ export default function HistoryClient() {
                       {sign}₱{amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                     </span>
                     
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTxToDelete(tx.id);
-                      }}
-                      className="text-neutral-600 hover:text-red-500 transition-colors p-2 -mr-2 active:scale-90"
-                      title="Delete Transaction"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                    {!tx.description?.startsWith('[REVERSAL]') && !reversedIds.has(tx.id) && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTxToDelete(tx.id);
+                        }}
+                        className="text-neutral-600 hover:text-red-500 transition-colors p-2 -mr-2 active:scale-90"
+                        title="Delete Transaction"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

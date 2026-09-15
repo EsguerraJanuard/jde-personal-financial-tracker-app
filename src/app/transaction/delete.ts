@@ -14,10 +14,19 @@ export async function deleteTransaction(transactionId: string) {
   if (fetchError || !tx) throw new Error('Transaction not found');
   if (tx.description?.startsWith('[REVERSAL]')) throw new Error('Cannot delete a reversal transaction');
 
-  // 2. Insert Reversal Transaction Header
+  // Infinite Money Glitch Mitigation: Verify transaction hasn't already been reversed
+  const { data: existingReversal } = await supabase
+    .from('transactions')
+    .select('id')
+    .like('description', `[REVERSAL] ${transactionId}%`)
+    .maybeSingle();
+
+  if (existingReversal) throw new Error('This transaction has already been reversed.');
+
+  // 2. Insert Reversal Transaction Header (Embedding ID to prevent duplicate reversals)
   const insertPayload: any = { 
     type: tx.type, 
-    description: `[REVERSAL] ${tx.description || tx.type}` 
+    description: `[REVERSAL] ${transactionId} ${tx.description || tx.type}` 
   };
   
   if (tx.parent_transaction_id) {
