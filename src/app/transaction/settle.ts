@@ -63,9 +63,14 @@ export async function processSettlement({
   } else {
      // We pay them: Offset gets +, chosen envelope gets -
      aLedger.push({ transaction_id: txId, allocation_id: offsetId, amount: amount });
-     const chosenId = destinations[0]?.allocation_id;
-     if (chosenId) {
-        aLedger.push({ transaction_id: txId, allocation_id: chosenId, amount: -amount });
+     
+     if (destinations && destinations.length > 0) {
+        for (const dest of destinations) {
+           const destAmt = Number(dest.amount);
+           if (destAmt > 0 && dest.allocation_id) {
+              aLedger.push({ transaction_id: txId, allocation_id: dest.allocation_id, amount: -destAmt });
+           }
+        }
      }
   }
 

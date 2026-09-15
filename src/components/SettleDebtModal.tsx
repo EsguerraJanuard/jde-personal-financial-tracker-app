@@ -37,15 +37,32 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
   
   const hasKnownDestinations = isReceivable && person.defaultDestinations && person.defaultDestinations.length > 0;
   
-  // Auto-calculate proportional returns for Receive Payment
+  // Auto-calculate proportional returns for Receive Payment using Hare Quota to prevent fractional imbalance
   let displayDestinations = destinations;
   if (isReceivable) {
      const sourceDests = hasKnownDestinations ? person.defaultDestinations : destinations;
      const totalDefault = sourceDests.reduce((sum: any, d: any) => sum + Number(d.amount), 0);
      if (totalDefault > 0) {
-        displayDestinations = sourceDests.map((d: any) => ({
-           ...d,
-           amount: ((Number(d.amount) / totalDefault) * numAmount).toFixed(2)
+        const amountInCents = Math.round(numAmount * 100);
+        let allocatedCents = 0;
+        
+        const cuts = sourceDests.map((d: any) => {
+           const exactCents = amountInCents * (Number(d.amount) / totalDefault);
+           const floorCents = Math.floor(exactCents);
+           const remainder = exactCents - floorCents;
+           allocatedCents += floorCents;
+           return { ...d, cents: floorCents, remainder };
+        });
+        
+        cuts.sort((a: any, b: any) => b.remainder - a.remainder);
+        let remainingCentsToDistribute = amountInCents - allocatedCents;
+        for (let i = 0; i < remainingCentsToDistribute; i++) {
+           if (cuts[i]) cuts[i].cents += 1;
+        }
+        
+        displayDestinations = cuts.map((c: any) => ({
+           ...c,
+           amount: (c.cents / 100).toFixed(2)
         }));
      }
   }
@@ -56,7 +73,7 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
     if (numAmount <= 0) return alert("Amount must be greater than 0");
     if (numAmount > maxAmount) return alert("You cannot settle more than the outstanding balance.");
 
-    if (!isReceivable && !isSplit && Math.abs(remaining) > 0.01) {
+    if (!isReceivable && Math.abs(remaining) > 0.01) {
        return alert("Please allocate the exact remaining amount across envelopes.");
     }
 
@@ -124,7 +141,7 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
             </label>
           {!isReceivable && (
             <span className={`text-[10px] font-bold uppercase tracking-widest ${Math.abs(remaining) < 0.01 ? 'text-green-400' : 'text-orange-400'}`}>
-              From Envelope
+              Remaining: ₱{remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           )}
           </div>
@@ -150,14 +167,44 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
           )}
 
           {!isReceivable && (
-            <div className="flex flex-col gap-2">
-              <select 
-                value={destinations[0]?.allocation_id || ''}
-                onChange={e => setDestinations([{ ...destinations[0], allocation_id: e.target.value }])}
-                className="w-full bg-black rounded-xl px-4 py-3 text-sm font-medium outline-none border border-neutral-800 focus:border-neutral-700"
-              >
-                {allocations.map((a: any) => <option key={a.id} value={a.id}>{a.name} (₱{Number(a.balance).toLocaleString()})</option>)}
-              </select>
+            <div className="flex flex-col gap-3">
+              {destinations.map((dest, idx) => (
+                <div key={dest.id || idx} className="flex gap-2">
+                  <select 
+                    value={dest.allocation_id || ''}
+                    onChange={e => {
+                      const newDests = [...destinations];
+                      newDests[idx].allocation_id = e.target.value;
+                      setDestinations(newDests);
+                    }}
+                    className="flex-1 bg-black rounded-xl px-4 py-3 text-sm font-medium outline-none border border-neutral-800 focus:border-neutral-700"
+                  >
+                    {allocations.map((a: any) => <option key={a.id} value={a.id}>{a.name} (₱{Number(a.balance).toLocaleString()})</option>)}
+                  </select>
+                  <input 
+                    type="number" step="0.01" placeholder="₱0"
+                    value={dest.amount}
+                    onChange={e => {
+                      const newDests = [...destinations];
+                      newDests[idx].amount = e.target.value;
+                      setDestinations(newDests);
+                    }}
+                    className="w-24 bg-black rounded-xl px-3 py-3 text-sm font-semibold outline-none text-right border border-neutral-800 focus:border-neutral-700"
+                  />
+                </div>
+              ))}
+              {destinations.length < 3 && (
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setIsSplit(true);
+                    setDestinations([...destinations, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]);
+                  }}
+                  className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
+                >
+                  + Add Envelope
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -165,7 +212,7 @@ export default function SettleDebtModal({ person, isReceivable, physicalWallets,
         {/* Submit */}
         <button 
           onClick={() => setShowConfirm(true)} disabled={loading}
-          className="mt-2 w-full py-4 rounded-xl font-bold text-[13px] uppercase tracking-widest text-black bg-white hover:bg-neutral-200 transition-colors active:scale-95 disabled:opacity-50"
+          className="mt-4 w-full py-4 rounded-xl font-bold text-[13px] uppercase tracking-widest text-black bg-white hover:bg-neutral-200 transition-colors active:scale-95 disabled:opacity-50"
         >
           Review Settlement
         </button>
