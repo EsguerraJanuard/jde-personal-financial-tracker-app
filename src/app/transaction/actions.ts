@@ -29,6 +29,10 @@ export async function resolvePersonWallet(person_name: string, group_type: strin
 export async function processTransaction(payload: any) {
   const { type, amount, wallet_id, allocation_id, person_name, lend_sources, expense_sources, description, is_direct, parent_transaction_id } = payload;
   
+  if (amount !== undefined && Number(amount) <= 0) {
+    throw new Error('Transaction amount must be strictly greater than 0');
+  }
+
   let dbType = type;
   if (['LEND', 'BORROW', 'TRANSFER', 'SETTLE_DEBT', 'DEBT_COLLECTION'].includes(type)) dbType = 'TRANSFER';
   if (type === 'INCOME_DIRECT') dbType = 'MANUAL_ADJUSTMENT';
@@ -71,10 +75,14 @@ export async function processTransaction(payload: any) {
        const amountInCents = Math.round(amount * 100);
        let allocatedCents = 0;
        
-       const cuts = allocs
-         .filter(a => Number(a.target_percentage) > 0)
+       const activeAllocs = allocs.filter(a => Number(a.target_percentage) > 0);
+       const totalPercentage = activeAllocs.reduce((sum, a) => sum + Number(a.target_percentage), 0);
+       
+       if (totalPercentage === 0) throw new Error('No active allocations found for splitting.');
+
+       const cuts = activeAllocs
          .map(a => {
-           const exactCents = amountInCents * (Number(a.target_percentage) / 100);
+           const exactCents = amountInCents * (Number(a.target_percentage) / totalPercentage);
            const floorCents = Math.floor(exactCents);
            const remainder = exactCents - floorCents;
            allocatedCents += floorCents;

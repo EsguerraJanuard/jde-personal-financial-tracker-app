@@ -54,7 +54,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
         newErrors.personName = "Required";
         if (!newErrors.amount) personRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-      if (Number(amount) > 0 && remainingLend !== 0) {
+      if (Number(amount) > 0 && Math.abs(remainingLend) >= 0.01) {
         newErrors.lendSource = `Remaining balance must be exactly 0`;
         if (!newErrors.amount && !newErrors.personName) lendSourceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -68,7 +68,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
     }
 
     if (tab === 'EXPENSE') {
-      if (Number(amount) > 0 && remainingExpense !== 0) {
+      if (Number(amount) > 0 && Math.abs(remainingExpense) >= 0.01) {
         newErrors.expenseSource = `Remaining balance must be exactly 0`;
       }
     }
@@ -217,7 +217,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
                 <span className="text-[10px] text-red-400 font-medium flex items-center gap-1"><AlertCircle size={10} /> {errors.expenseSource}</span>
               ) : (
                 <span className={`text-[10px] font-bold uppercase tracking-widest ${Math.abs(remainingExpense) < 0.01 ? 'text-green-400' : 'text-orange-400'}`}>
-                  Remaining: ₱{remainingExpense.toLocaleString()}
+                  Remaining: ₱{remainingExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               )}
             </div>
@@ -284,8 +284,8 @@ export default function TransactionForm({ wallets, allocations }: any) {
                  {errors.lendSource ? (
                     <span className="text-[10px] text-red-400 font-medium flex items-center gap-1"><AlertCircle size={10} /> {errors.lendSource}</span>
                  ) : (
-                    <span className={`text-[10px] font-bold uppercase tracking-widest ${remainingLend === 0 ? 'text-green-400' : 'text-orange-400'}`}>
-                      Remaining: ₱{remainingLend.toLocaleString()}
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${Math.abs(remainingLend) < 0.01 ? 'text-green-400' : 'text-orange-400'}`}>
+                      Remaining: ₱{remainingLend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                  )}
               </div>
@@ -410,8 +410,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
 
         {/* SUBMIT */}
         <button 
-          type="button"
-          onClick={handleSubmit}
+          type="submit"
           disabled={loading}
           className="mt-4 mb-4 bg-white text-black font-bold rounded-2xl py-4 text-[13px] uppercase tracking-widest shadow-lg shadow-white/5 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
         >

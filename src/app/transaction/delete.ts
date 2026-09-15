@@ -15,12 +15,18 @@ export async function deleteTransaction(transactionId: string) {
   if (tx.description?.startsWith('[REVERSAL]')) throw new Error('Cannot delete a reversal transaction');
 
   // 2. Insert Reversal Transaction Header
+  const insertPayload: any = { 
+    type: tx.type, 
+    description: `[REVERSAL] ${tx.description || tx.type}` 
+  };
+  
+  if (tx.parent_transaction_id) {
+    insertPayload.parent_transaction_id = tx.parent_transaction_id;
+  }
+
   const { data: revTx, error: revError } = await supabase
     .from('transactions')
-    .insert([{ 
-      type: tx.type, 
-      description: `[REVERSAL] ${tx.description || tx.type}` 
-    }])
+    .insert([insertPayload])
     .select('id')
     .single();
 
