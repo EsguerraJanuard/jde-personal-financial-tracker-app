@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
 import { deleteTransaction } from '@/app/transaction/delete';
+import { fetchHistoryTransactions } from '@/app/transaction/history';
 import { ArrowLeft, Search, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import TransactionDetailsModal from './TransactionDetailsModal';
@@ -39,26 +39,12 @@ export default function HistoryClient() {
 
   const fetchTransactions = async () => {
     setLoading(true);
-    let query = supabase
-      .from('transactions')
-      .select(`
-        id, type, description, created_at,
-        wallet_ledger ( amount, wallets ( name, group_type ) ),
-        allocation_ledger ( amount, allocations ( name ) )
-      `)
-      .neq('description', 'Initial System Seeding')
-      .order('created_at', { ascending: false });
-
-    if (monthFilter) {
-      const [year, month] = monthFilter.split('-');
-      const start = new Date(Number(year), Number(month) - 1, 1);
-      const end = new Date(Number(year), Number(month), 0, 23, 59, 59, 999); 
-      query = query.gte('created_at', start.toISOString()).lte('created_at', end.toISOString());
+    try {
+      const data = await fetchHistoryTransactions(monthFilter);
+      if (data) setTransactions(data as unknown as Transaction[]);
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
     }
-
-    const { data, error } = await query;
-    if (error) console.error("Error fetching transactions:", error);
-    if (data) setTransactions(data as unknown as Transaction[]);
     setLoading(false);
   };
 
