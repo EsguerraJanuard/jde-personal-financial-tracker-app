@@ -13,7 +13,7 @@ export default async function Home() {
     .select(`
       id, type, description, created_at,
       wallet_ledger ( amount, wallets ( name, group_type ) ),
-      allocation_ledger ( amount, allocations ( name ) )
+      allocation_ledger ( amount, allocation_id, allocations ( name ) )
     `)
     .neq('description', 'Initial System Seeding')
     .order('created_at', { ascending: false })
