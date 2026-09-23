@@ -21,7 +21,13 @@ export default function DashboardClient({
 
   const visibleAllocations = allocations
     .filter((a: any) => Number(a.target_percentage) > 0 || Number(a.balance) !== 0)
-    .sort((a: any, b: any) => a.name.localeCompare(b.name));
+    .sort((a: any, b: any) => {
+      const aIsSchool = a.id === '806ce394-6312-4aac-9fda-5cced33ca4cf';
+      const bIsSchool = b.id === '806ce394-6312-4aac-9fda-5cced33ca4cf';
+      if (aIsSchool && !bIsSchool) return -1;
+      if (!aIsSchool && bIsSchool) return 1;
+      return a.name.localeCompare(b.name);
+    });
 
   const formatMoney = (amount: number) => {
     if (!show) return '****';
