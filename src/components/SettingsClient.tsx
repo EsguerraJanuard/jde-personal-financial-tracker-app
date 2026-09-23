@@ -35,7 +35,7 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
       if (e.id === id) {
         if (field === 'target_percentage') {
           let num = Number(value);
-          if (isNaN(num)) num = 0;
+          if (isNaN(num) || num < 0) num = 0;
           return { ...e, target_percentage: num };
         }
         return { ...e, [field]: value };
@@ -49,7 +49,7 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
       const copy = [...prev];
       if (field === 'target_percentage') {
          let num = Number(value);
-         if (isNaN(num)) num = 0;
+         if (isNaN(num) || num < 0) num = 0;
          copy[index][field] = num;
       } else {
          copy[index][field] = value;

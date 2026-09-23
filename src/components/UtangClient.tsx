@@ -35,9 +35,26 @@ export default function UtangClient({ receivables, payables, physicalWallets, al
   if (hasKnownDestinations) {
      const totalDefault = selectedLoan.defaultDestinations.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
      if (totalDefault > 0) {
-        displayDestinations = selectedLoan.defaultDestinations.map((d: any) => ({
-           allocation_id: d.allocation_id,
-           amount: ((Number(d.amount) / totalDefault) * numAmount).toFixed(2)
+        const amountInCents = Math.round(numAmount * 100);
+        let allocatedCents = 0;
+        
+        const cuts = selectedLoan.defaultDestinations.map((d: any) => {
+           const exactCents = amountInCents * (Number(d.amount) / totalDefault);
+           const floorCents = Math.floor(exactCents);
+           const remainder = exactCents - floorCents;
+           allocatedCents += floorCents;
+           return { allocation_id: d.allocation_id, cents: floorCents, remainder };
+        });
+        
+        cuts.sort((a: any, b: any) => b.remainder - a.remainder);
+        let remainingCentsToDistribute = amountInCents - allocatedCents;
+        for (let i = 0; i < remainingCentsToDistribute; i++) {
+           if (cuts[i]) cuts[i].cents += 1;
+        }
+        
+        displayDestinations = cuts.map((c: any) => ({
+           allocation_id: c.allocation_id,
+           amount: (c.cents / 100).toFixed(2)
         }));
      }
   }

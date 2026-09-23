@@ -42,11 +42,20 @@ export async function processTransaction(payload: any) {
   if (parent_transaction_id) insertPayload.parent_transaction_id = parent_transaction_id;
 
   // Race Condition Mitigation (Without RPC):
-  // Perform a strict server-side check of the origin wallet balance just before insertion
-  if (['EXPENSE', 'TRANSFER', 'LEND', 'SETTLE_DEBT'].includes(type) && wallet_id) {
-    const { data: wBal } = await supabase.from('wallet_balances').select('balance').eq('id', wallet_id).single();
-    if (wBal && Number(wBal.balance) < Number(amount)) {
-      throw new Error(`Insufficient funds. Your wallet balance is ₱${wBal.balance}`);
+  // Perform a strict server-side check of the origin balance just before insertion
+  if (type === 'TRANSFER' && payload.transfer_type === 'ENVELOPE' && payload.from_id) {
+    const { data: aBal } = await supabase.from('allocation_balances').select('balance').eq('id', payload.from_id).single();
+    if (aBal && Number(aBal.balance) < Number(amount)) {
+      throw new Error(`Insufficient funds. Envelope balance is ₱${aBal.balance}`);
+    }
+  } else if (['EXPENSE', 'TRANSFER', 'LEND', 'SETTLE_DEBT'].includes(type) && wallet_id) {
+    // Note: TRANSFER here implies transfer_type === 'WALLET' because we already caught 'ENVELOPE' above, 
+    // OR it means wallet_id is just checked generally for those types.
+    if (type !== 'TRANSFER' || payload.transfer_type === 'WALLET') {
+      const { data: wBal } = await supabase.from('wallet_balances').select('balance').eq('id', wallet_id).single();
+      if (wBal && Number(wBal.balance) < Number(amount)) {
+        throw new Error(`Insufficient funds. Your wallet balance is ₱${wBal.balance}`);
+      }
     }
   }
 
@@ -176,20 +185,19 @@ export async function processTransaction(payload: any) {
 
      if (payload.destinations && payload.destinations.length > 0) {
        const allocLedgers = [];
-       // The offset is credited back
-       allocLedgers.push({ transaction_id: txId, allocation_id: '05da18bc-f387-4be5-ad54-c6d924a15751', amount: -amount });
        
        for (const dest of payload.destinations) {
          if (Number(dest.amount) > 0) {
            allocLedgers.push({ transaction_id: txId, allocation_id: dest.allocation_id, amount: Number(dest.amount) });
          }
        }
-       await supabase.from('allocation_ledger').insert(allocLedgers);
+       if (allocLedgers.length > 0) {
+         await supabase.from('allocation_ledger').insert(allocLedgers);
+       }
      } else if (allocation_id) {
        // Legacy single-envelope fallback
        await supabase.from('allocation_ledger').insert([
-         { transaction_id: txId, allocation_id: allocation_id, amount: amount },
-         { transaction_id: txId, allocation_id: '05da18bc-f387-4be5-ad54-c6d924a15751', amount: -amount }
+         { transaction_id: txId, allocation_id: allocation_id, amount: amount }
        ]);
      }
   }
