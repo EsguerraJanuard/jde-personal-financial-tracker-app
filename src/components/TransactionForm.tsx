@@ -156,9 +156,6 @@ export default function TransactionForm({ wallets, allocations }: any) {
             onClick={() => {
               setTab(t);
               setErrors({});
-              if (t === 'ADJUST') {
-                setDescription('Balance Adjustment');
-              }
             }}
             className={`py-2.5 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-colors ${tab === t ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-500'}`}
           >
@@ -172,7 +169,9 @@ export default function TransactionForm({ wallets, allocations }: any) {
         {/* AMOUNT */}
         <div className="flex flex-col gap-2" ref={amountRef}>
           <div className="flex justify-between items-end">
-            <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">Amount</label>
+            <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">
+              {tab === 'ADJUST' ? 'Shortfall Amount' : 'Amount'}
+            </label>
             {errors.amount && <span className="text-[10px] text-red-400 font-medium flex items-center gap-1"><AlertCircle size={10} /> {errors.amount}</span>}
           </div>
           <div className="relative">
@@ -433,26 +432,38 @@ export default function TransactionForm({ wallets, allocations }: any) {
         {/* ADJUST TAB */}
         {tab === 'ADJUST' && (
           <div className="flex flex-col gap-3">
-             <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">Exclude Envelopes</label>
-             <div className="flex flex-col gap-2">
+             <div className="flex flex-col">
+               <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">Envelopes to Deduct From</label>
+               <span className="text-[10px] text-neutral-400 mt-0.5">Tap an envelope to exclude it from sharing the shortfall.</span>
+             </div>
+             
+             <div className="grid grid-cols-2 gap-2">
                {allocations.map((a: any) => {
                  const isExcluded = excludedAllocIds.includes(a.id);
                  return (
-                   <label key={a.id} className={`flex items-center gap-3 p-3 rounded-xl border border-neutral-800 cursor-pointer transition-colors ${isExcluded ? 'bg-neutral-900/50 opacity-50' : 'bg-neutral-900 hover:border-neutral-700'}`}>
-                     <input 
-                       type="checkbox" 
-                       checked={isExcluded}
-                       onChange={() => {
-                         if (isExcluded) {
-                           setExcludedAllocIds(prev => prev.filter(id => id !== a.id));
-                         } else {
-                           setExcludedAllocIds(prev => [...prev, a.id]);
-                         }
-                       }}
-                       className="w-4 h-4 rounded border-neutral-700 text-neutral-900 focus:ring-0 focus:ring-offset-0 bg-neutral-800"
-                     />
-                     <span className="text-sm font-medium">{a.name} (₱{Number(a.balance).toLocaleString()})</span>
-                   </label>
+                   <button 
+                     key={a.id}
+                     type="button"
+                     onClick={() => {
+                       if (isExcluded) {
+                         setExcludedAllocIds(prev => prev.filter(id => id !== a.id));
+                       } else {
+                         setExcludedAllocIds(prev => [...prev, a.id]);
+                       }
+                     }}
+                     className={`flex flex-col items-start gap-1 p-3 rounded-2xl border text-left transition-colors active:scale-95 ${
+                       !isExcluded 
+                         ? 'bg-neutral-900 border-neutral-700 hover:border-neutral-500 shadow-sm' 
+                         : 'bg-black border-neutral-900 opacity-40 hover:opacity-70'
+                     }`}
+                   >
+                     <span className={`text-xs font-bold ${!isExcluded ? 'text-white' : 'text-neutral-500 line-through decoration-neutral-600'}`}>
+                       {a.name}
+                     </span>
+                     <span className="text-[10px] font-medium text-neutral-500">
+                       ₱{Number(a.balance).toLocaleString()}
+                     </span>
+                   </button>
                  );
                })}
              </div>
@@ -466,7 +477,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
             type="text" 
             value={description} onChange={e => setDescription(e.target.value)}
             className="w-full bg-neutral-900 rounded-xl px-5 py-4 text-sm font-medium outline-none focus:ring-2 focus:ring-neutral-700 transition-shadow"
-            placeholder="e.g. Gas, Grocery"
+            placeholder={tab === 'ADJUST' ? "e.g. GCash discrepancy" : "e.g. Gas, Grocery"}
           />
         </div>
 
