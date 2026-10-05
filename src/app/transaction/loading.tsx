@@ -7,10 +7,10 @@ export default function Loading() {
         <div className="h-6 w-36 bg-neutral-800 rounded animate-pulse"></div>
       </header>
 
-      {/* Tabs Skeleton */}
-      <div className="p-5 grid grid-cols-5 gap-1.5">
-        {[1, 2, 3, 4, 5].map(i => (
-          <div key={`tab-skel-${i}`} className="h-8 bg-neutral-900 rounded-lg animate-pulse"></div>
+      {/* Tabs Skeleton - 3x2 Grid */}
+      <div className="p-5 grid grid-cols-3 gap-1.5">
+        {[1, 2, 3, 4, 5, 6].map(i => (
+          <div key={`tab-skel-${i}`} className="h-10 bg-neutral-900 rounded-lg animate-pulse"></div>
         ))}
       </div>
 

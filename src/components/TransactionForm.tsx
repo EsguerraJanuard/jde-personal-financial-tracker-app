@@ -2,11 +2,11 @@
 
 import { useState, useRef } from 'react';
 import { processTransaction } from '@/app/transaction/actions';
-import { ArrowLeft, ChevronDown, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ChevronDown, AlertCircle, X } from 'lucide-react';
 import Link from 'next/link';
 
 export default function TransactionForm({ wallets, allocations }: any) {
-  const [tab, setTab] = useState<'INCOME' | 'EXPENSE' | 'LEND' | 'BORROW' | 'TRANSFER'>('INCOME');
+  const [tab, setTab] = useState<'INCOME' | 'EXPENSE' | 'LEND' | 'BORROW' | 'TRANSFER' | 'ADJUST'>('INCOME');
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -35,6 +35,9 @@ export default function TransactionForm({ wallets, allocations }: any) {
   const [transferType, setTransferType] = useState<'WALLET' | 'ENVELOPE'>('WALLET');
   const [transferToWalletId, setTransferToWalletId] = useState(wallets[1]?.id || wallets[0]?.id || '');
   const [transferToAllocId, setTransferToAllocId] = useState(allocations[1]?.id || allocations[0]?.id || '');
+
+  // Adjust Specific
+  const [excludedAllocIds, setExcludedAllocIds] = useState<string[]>([]);
 
   const remainingLend = Number(amount) - lendSources.reduce((sum, s) => sum + Number(s.amount || 0), 0);
   const remainingExpense = Number(amount) - expenseSources.reduce((sum, s) => sum + Number(s.amount || 0), 0);
@@ -108,6 +111,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
         person_name: personName.trim(),
         lend_sources: tab === 'LEND' ? lendSources.map(s => ({ allocation_id: s.allocation_id, amount: Number(s.amount) })) : [],
         expense_sources: tab === 'EXPENSE' ? expenseSources.map(s => ({ allocation_id: s.allocation_id, amount: Number(s.amount) })) : [],
+        excluded_allocation_ids: tab === 'ADJUST' ? excludedAllocIds : undefined,
         description,
         is_direct: isDirect,
         transfer_type: tab === 'TRANSFER' ? transferType : undefined,
@@ -144,16 +148,19 @@ export default function TransactionForm({ wallets, allocations }: any) {
         <h1 className="font-semibold text-lg">New Transaction</h1>
       </header>
 
-      <div className="p-5 grid grid-cols-5 gap-1.5">
-        {(['INCOME', 'EXPENSE', 'LEND', 'BORROW', 'TRANSFER'] as const).map(t => (
+      <div className="p-5 grid grid-cols-3 grid-rows-2 gap-1.5">
+        {(['INCOME', 'EXPENSE', 'LEND', 'BORROW', 'TRANSFER', 'ADJUST'] as const).map(t => (
           <button 
             key={t}
             type="button"
             onClick={() => {
               setTab(t);
               setErrors({});
+              if (t === 'ADJUST') {
+                setDescription('Balance Adjustment');
+              }
             }}
-            className={`py-2 text-[9px] font-bold rounded-lg uppercase tracking-wider transition-colors ${tab === t ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-500'}`}
+            className={`py-2.5 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-colors ${tab === t ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-500'}`}
           >
             {t}
           </button>
@@ -179,11 +186,23 @@ export default function TransactionForm({ wallets, allocations }: any) {
           </div>
         </div>
 
-        {/* FROM / TO WALLET — hidden for BORROW & TRANSFER */}
-        {tab !== 'BORROW' && tab !== 'TRANSFER' && (
+        {/* FROM / TO WALLET — hidden for BORROW & TRANSFER & ADJUST */}
+        {tab !== 'BORROW' && tab !== 'TRANSFER' && tab !== 'ADJUST' && (
           <div className="flex flex-col gap-2">
             <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">
               {tab === 'INCOME' ? 'To Wallet' : 'From Wallet'}
+            </label>
+            <Select value={walletId} onChange={(e: any) => setWalletId(e.target.value)}>
+              {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance || 0).toLocaleString()})</option>)}
+            </Select>
+          </div>
+        )}
+
+        {/* ADJUST WALLET */}
+        {tab === 'ADJUST' && (
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">
+              Wallet to Adjust
             </label>
             <Select value={walletId} onChange={(e: any) => setWalletId(e.target.value)}>
               {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance || 0).toLocaleString()})</option>)}
@@ -247,18 +266,25 @@ export default function TransactionForm({ wallets, allocations }: any) {
                   }}
                   className="w-24 bg-neutral-900 rounded-xl px-3 py-4 text-sm font-semibold outline-none text-right border border-transparent focus:border-neutral-700"
                 />
+                {expenseSources.length > 1 && (
+                  <button 
+                    type="button" 
+                    onClick={() => setExpenseSources(expenseSources.filter((_, i) => i !== idx))}
+                    className="flex items-center justify-center p-3 text-neutral-500 hover:text-red-400 bg-neutral-900 rounded-xl border border-transparent transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </div>
             ))}
             
-            {expenseSources.length < 3 && (
-              <button 
-                type="button" 
-                onClick={() => setExpenseSources([...expenseSources, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }])}
-                className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
-              >
-                + Add Envelope
-              </button>
-            )}
+            <button 
+              type="button" 
+              onClick={() => setExpenseSources([...expenseSources, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }])}
+              className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
+            >
+              + Add Envelope
+            </button>
           </div>
         )}
 
@@ -316,18 +342,25 @@ export default function TransactionForm({ wallets, allocations }: any) {
                       }}
                       className="w-24 bg-neutral-900 rounded-xl px-3 py-4 text-sm font-semibold outline-none text-right border border-transparent focus:border-neutral-700"
                     />
+                    {lendSources.length > 1 && (
+                      <button 
+                        type="button" 
+                        onClick={() => setLendSources(lendSources.filter((_, i) => i !== idx))}
+                        className="flex items-center justify-center p-3 text-neutral-500 hover:text-red-400 bg-neutral-900 rounded-xl border border-transparent transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
                   </div>
                 ))}
                 
-                {lendSources.length < 3 && (
-                  <button 
-                    type="button" 
-                    onClick={() => setLendSources([...lendSources, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }])}
-                    className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
-                  >
-                    + Add Envelope
-                  </button>
-                )}
+                <button 
+                  type="button" 
+                  onClick={() => setLendSources([...lendSources, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }])}
+                  className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
+                >
+                  + Add Envelope
+                </button>
               </div>
             </div>
           </>
@@ -397,6 +430,35 @@ export default function TransactionForm({ wallets, allocations }: any) {
           </div>
         )}
 
+        {/* ADJUST TAB */}
+        {tab === 'ADJUST' && (
+          <div className="flex flex-col gap-3">
+             <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">Exclude Envelopes</label>
+             <div className="flex flex-col gap-2">
+               {allocations.map((a: any) => {
+                 const isExcluded = excludedAllocIds.includes(a.id);
+                 return (
+                   <label key={a.id} className={`flex items-center gap-3 p-3 rounded-xl border border-neutral-800 cursor-pointer transition-colors ${isExcluded ? 'bg-neutral-900/50 opacity-50' : 'bg-neutral-900 hover:border-neutral-700'}`}>
+                     <input 
+                       type="checkbox" 
+                       checked={isExcluded}
+                       onChange={() => {
+                         if (isExcluded) {
+                           setExcludedAllocIds(prev => prev.filter(id => id !== a.id));
+                         } else {
+                           setExcludedAllocIds(prev => [...prev, a.id]);
+                         }
+                       }}
+                       className="w-4 h-4 rounded border-neutral-700 text-neutral-900 focus:ring-0 focus:ring-offset-0 bg-neutral-800"
+                     />
+                     <span className="text-sm font-medium">{a.name} (₱{Number(a.balance).toLocaleString()})</span>
+                   </label>
+                 );
+               })}
+             </div>
+          </div>
+        )}
+
         {/* NOTE */}
         <div className="flex flex-col gap-2 mt-2">
           <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">Note (Optional)</label>
@@ -463,6 +525,14 @@ export default function TransactionForm({ wallets, allocations }: any) {
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-neutral-500 font-medium">To Envelope</span>
                     <span className="font-medium text-white">{allocations.find((a: any) => a.id === transferToAllocId)?.name}</span>
+                  </div>
+                </>
+              )}
+              {tab === 'ADJUST' && (
+                <>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-neutral-500 font-medium">Wallet to Adjust</span>
+                    <span className="font-medium text-white">{wallets.find((w: any) => w.id === walletId)?.name}</span>
                   </div>
                 </>
               )}

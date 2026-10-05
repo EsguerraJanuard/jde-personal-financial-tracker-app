@@ -21,6 +21,7 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   const togglePin = (id: string) => {
     setPinnedWalletIds(prev => {
@@ -90,6 +91,34 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
   // However, I will leave this generic for now to allow you to adjust the numbers freely.
   const isValid = (totalPercentage === 100 && envs.every(e => e.name.trim() !== '') && newEnvs.every(e => e.name.trim() !== '') && newWallets.every(w => w.name.trim() !== '') && pinnedWalletIds.length > 0 && pinnedWalletIds.length <= 3);
 
+  const hasUnsavedChanges = (() => {
+    if (newEnvs.length > 0) return true;
+    if (newWallets.length > 0) return true;
+    
+    if (pinnedWalletIds.length !== initialPinned.length) return true;
+    const sortedInitial = [...initialPinned].sort();
+    const sortedCurrent = [...pinnedWalletIds].sort();
+    if (!sortedInitial.every((val, index) => val === sortedCurrent[index])) return true;
+
+    const hasEnvChanges = envs.some(e => {
+      const original = allocations.find(a => a.id === e.id);
+      if (!original) return true;
+      if (original.target_percentage !== e.target_percentage) return true;
+      if (original.name !== e.name) return true;
+      return false;
+    });
+    
+    return hasEnvChanges;
+  })();
+
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      setShowLeaveConfirm(true);
+    } else {
+      router.push('/');
+    }
+  };
+
   const handleSave = async () => {
     if (!isValid) return;
     setLoading(true);
@@ -118,7 +147,7 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
   return (
     <div className="flex flex-col h-full min-h-screen bg-black">
       <header className="flex items-center gap-4 p-5 border-b border-neutral-900 sticky top-0 bg-black/80 backdrop-blur-md z-20">
-        <Link href="/" className="p-2 -ml-2 bg-neutral-900 rounded-full active:scale-95 transition-transform"><ArrowLeft size={20} /></Link>
+        <button onClick={handleBack} className="p-2 -ml-2 bg-neutral-900 rounded-full active:scale-95 transition-transform"><ArrowLeft size={20} /></button>
         <h1 className="font-semibold text-lg flex-1">Settings</h1>
       </header>
 
@@ -320,6 +349,38 @@ export default function SettingsClient({ allocations, wallets }: { allocations: 
                 className="flex-1 py-3.5 rounded-xl font-bold text-sm text-black bg-white hover:bg-neutral-200 transition-colors active:scale-95"
               >
                 {loading ? 'Saving...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unsaved Changes Leave Confirmation Modal */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-5 bg-black/80 backdrop-blur-md">
+          <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-3xl p-6 flex flex-col gap-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-semibold mb-1 tracking-tight">Unsaved Changes</h3>
+              <p className="text-neutral-400 text-xs px-2">
+                You have unsaved changes. Leave anyway?
+              </p>
+            </div>
+            
+            <div className="flex gap-3 mt-2">
+              <button 
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 py-3.5 rounded-xl font-semibold text-sm text-neutral-400 bg-neutral-800 hover:text-white transition-colors active:scale-95"
+              >
+                Stay
+              </button>
+              <button 
+                onClick={() => router.push('/')} 
+                className="flex-1 py-3.5 rounded-xl font-bold text-sm text-white bg-red-600 hover:bg-red-700 transition-colors active:scale-95"
+              >
+                Leave
               </button>
             </div>
           </div>

@@ -35,7 +35,7 @@ export async function processTransaction(payload: any) {
 
   let dbType = type;
   if (['LEND', 'BORROW', 'TRANSFER', 'SETTLE_DEBT', 'DEBT_COLLECTION'].includes(type)) dbType = 'TRANSFER';
-  if (type === 'INCOME_DIRECT') dbType = 'MANUAL_ADJUSTMENT';
+  if (type === 'INCOME_DIRECT' || type === 'ADJUST') dbType = 'MANUAL_ADJUSTMENT';
   if (type === 'INCOME_SPLIT') dbType = 'INCOME_SPLIT';
 
   const insertPayload: any = { type: dbType, description };
@@ -216,6 +216,58 @@ export async function processTransaction(payload: any) {
          { transaction_id: txId, allocation_id: allocation_id, amount: -amount }
        ]);
      }
+  }
+
+  // ADJUST (Shortfall deduction distributed proportionally)
+  else if (type === 'ADJUST') {
+     const excluded_allocation_ids = payload.excluded_allocation_ids || [];
+     await supabase.from('wallet_ledger').insert([{ transaction_id: txId, wallet_id, amount: -amount }]);
+     
+     const { data: allocs } = await supabase.from('allocations').select('*');
+     if (!allocs) throw new Error('No allocations found');
+     
+     const amountInCents = Math.round(amount * 100);
+     let allocatedCents = 0;
+     
+     const activeAllocs = allocs.filter(a => 
+       Number(a.target_percentage) > 0 && !excluded_allocation_ids.includes(a.id)
+     );
+     
+     const totalPercentage = activeAllocs.reduce((sum, a) => sum + Number(a.target_percentage), 0);
+     if (totalPercentage === 0) throw new Error('No active allocations found for adjustment.');
+
+     const cuts = activeAllocs
+       .map(a => {
+         const exactCents = amountInCents * (Number(a.target_percentage) / totalPercentage);
+         const floorCents = Math.floor(exactCents);
+         const remainder = exactCents - floorCents;
+         allocatedCents += floorCents;
+         return { id: a.id, cents: floorCents, remainder };
+       });
+       
+     cuts.sort((a, b) => b.remainder - a.remainder);
+     
+     let remainingCentsToDistribute = amountInCents - allocatedCents;
+     for (let i = 0; i < remainingCentsToDistribute; i++) {
+       if (cuts[i]) cuts[i].cents += 1;
+     }
+     
+     const ledgers = cuts
+       .filter(c => c.cents > 0)
+       .map(c => ({
+         transaction_id: txId,
+         allocation_id: c.id,
+         amount: -Number((c.cents / 100).toFixed(2)) // Negative amount for deduction
+       }));
+       
+     if (ledgers.length > 0) {
+       await supabase.from('allocation_ledger').insert(ledgers);
+     }
+        
+     splitBreakdown = ledgers.map(l => {
+        const allocName = allocs.find(a => a.id === l.allocation_id)?.name || 'Unknown';
+        return { name: allocName, amount: l.amount };
+     });
   }
 
   // INTERNAL TRANSFER
