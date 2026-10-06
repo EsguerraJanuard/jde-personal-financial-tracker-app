@@ -57,12 +57,26 @@ export default function TransactionDetailsModal({ tx, onClose }: { tx: any, onCl
      personName = dWallet?.name || 'Unknown';
      personLabel = 'Borrower';
      fromWallet = sWallet?.name || ''; // Maintain origin wallet display
-  } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'INCOME_DIRECT' || tx.type === 'MANUAL_ADJUSTMENT') {
+  } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'INCOME_DIRECT') {
      const w = tx.wallet_ledger?.find((l: any) => l.amount > 0);
      mainAmount = w ? w.amount : 0;
      color = 'text-green-500';
      typeLabel = tx.type === 'INCOME_SPLIT' ? 'Split Income' : 'Direct Income';
      toWallet = dWallet?.name || 'Unknown';
+  } else if (tx.type === 'MANUAL_ADJUSTMENT') {
+     const wPos = tx.wallet_ledger?.find((l: any) => l.amount > 0);
+     const wNeg = tx.wallet_ledger?.find((l: any) => l.amount < 0);
+     if (wNeg && !wPos) {
+       mainAmount = Math.abs(wNeg.amount);
+       color = 'text-orange-400';
+       typeLabel = 'Balance Adjustment';
+       fromWallet = sWallet?.name || 'Unknown';
+     } else {
+       mainAmount = wPos ? wPos.amount : 0;
+       color = 'text-green-500';
+       typeLabel = 'Direct Income';
+       toWallet = dWallet?.name || 'Unknown';
+     }
   } else if (tx.type === 'EXPENSE') {
      const w = tx.wallet_ledger?.find((l: any) => l.amount < 0);
      mainAmount = w ? Math.abs(w.amount) : 0;

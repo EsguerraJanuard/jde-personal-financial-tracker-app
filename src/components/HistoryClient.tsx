@@ -106,13 +106,27 @@ export default function HistoryClient() {
        color = 'text-red-500'; // Decoupled from blue transfer color
        sign = '-';
        if (!tx.description) title = 'Lent';
-    } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'INCOME_DIRECT' || tx.type === 'MANUAL_ADJUSTMENT') {
+    } else if (tx.type === 'INCOME_SPLIT' || tx.type === 'INCOME_DIRECT') {
        const w = tx.wallet_ledger?.find(l => l.amount > 0);
        amount = w ? w.amount : 0;
        color = 'text-green-500';
        sign = '+';
        if (!tx.description) title = tx.type === 'INCOME_SPLIT' ? 'Split Income' : 'Direct Income';
-    } else if (tx.type === 'EXPENSE') {
+     } else if (tx.type === 'MANUAL_ADJUSTMENT') {
+       const wPos = tx.wallet_ledger?.find(l => l.amount > 0);
+       const wNeg = tx.wallet_ledger?.find(l => l.amount < 0);
+       if (wNeg && !wPos) {
+         amount = Math.abs(wNeg.amount);
+         color = 'text-orange-400';
+         sign = '-';
+         if (!tx.description) title = 'Balance Adjustment';
+       } else {
+         amount = wPos ? wPos.amount : 0;
+         color = 'text-green-500';
+         sign = '+';
+         if (!tx.description) title = 'Direct Income';
+       }
+     } else if (tx.type === 'EXPENSE') {
        const w = tx.wallet_ledger?.find(l => l.amount < 0);
        amount = w ? Math.abs(w.amount) : 0;
        color = 'text-white';
