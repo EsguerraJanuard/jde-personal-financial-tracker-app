@@ -18,6 +18,8 @@ export default function TransactionForm({ wallets, allocations }: any) {
 
   // Form State
   const [amount, setAmount] = useState('');
+  const [expenseFirstManual, setExpenseFirstManual] = useState(false);
+  const [lendFirstManual, setLendFirstManual] = useState(false);
   const [description, setDescription] = useState('');
   const [isDirect, setIsDirect] = useState(false);
   
@@ -156,6 +158,8 @@ export default function TransactionForm({ wallets, allocations }: any) {
             onClick={() => {
               setTab(t);
               setErrors({});
+              setExpenseFirstManual(false);
+              setLendFirstManual(false);
             }}
             className={`py-2.5 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-colors ${tab === t ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-500'}`}
           >
@@ -178,7 +182,19 @@ export default function TransactionForm({ wallets, allocations }: any) {
             <span className="absolute left-5 top-1/2 -translate-y-1/2 text-xl font-medium text-neutral-400">₱</span>
             <input 
               type="number" step="0.01"
-              value={amount} onChange={e => { setAmount(e.target.value); setErrors(prev => ({...prev, amount: ''})); }}
+              value={amount} onChange={e => {
+                const val = e.target.value;
+                setAmount(val);
+                setErrors(prev => ({...prev, amount: ''}));
+                // Auto-mirror into the first expense row if user hasn't split yet
+                if (tab === 'EXPENSE' && expenseSources.length === 1 && !expenseFirstManual) {
+                  setExpenseSources([{ ...expenseSources[0], amount: val }]);
+                }
+                // Auto-mirror into the first lend row if user hasn't split yet
+                if (tab === 'LEND' && lendSources.length === 1 && !lendFirstManual) {
+                  setLendSources([{ ...lendSources[0], amount: val }]);
+                }
+              }}
               className={`w-full bg-neutral-900 rounded-2xl pl-12 pr-4 py-5 text-3xl font-semibold outline-none transition-shadow ${errors.amount ? 'ring-1 ring-red-500/50' : 'focus:ring-2 focus:ring-neutral-700'}`}
               placeholder="0"
             />
@@ -262,6 +278,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
                     newSources[idx].amount = e.target.value;
                     setExpenseSources(newSources);
                     setErrors(prev => ({...prev, expenseSource: ''}));
+                    if (idx === 0) setExpenseFirstManual(true);
                   }}
                   className="w-24 bg-neutral-900 rounded-xl px-3 py-4 text-sm font-semibold outline-none text-right border border-transparent focus:border-neutral-700"
                 />
@@ -279,7 +296,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
             
             <button 
               type="button" 
-              onClick={() => setExpenseSources([...expenseSources, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }])}
+              onClick={() => { setExpenseSources([...expenseSources, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]); setExpenseFirstManual(true); }}
               className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
             >
               + Add Envelope
@@ -338,6 +355,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
                         newSources[idx].amount = e.target.value;
                         setLendSources(newSources);
                         setErrors(prev => ({...prev, lendSource: ''}));
+                        if (idx === 0) setLendFirstManual(true);
                       }}
                       className="w-24 bg-neutral-900 rounded-xl px-3 py-4 text-sm font-semibold outline-none text-right border border-transparent focus:border-neutral-700"
                     />
@@ -355,7 +373,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
                 
                 <button 
                   type="button" 
-                  onClick={() => setLendSources([...lendSources, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }])}
+                  onClick={() => { setLendSources([...lendSources, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]); setLendFirstManual(true); }}
                   className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
                 >
                   + Add Envelope
