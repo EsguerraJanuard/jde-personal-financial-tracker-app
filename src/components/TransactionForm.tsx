@@ -296,7 +296,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
             
             <button 
               type="button" 
-              onClick={() => { setExpenseSources([...expenseSources, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]); setExpenseFirstManual(true); }}
+              onClick={() => { setExpenseSources([{ ...expenseSources[0], amount: '' }, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]); setExpenseFirstManual(true); }}
               className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
             >
               + Add Envelope
@@ -373,7 +373,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
                 
                 <button 
                   type="button" 
-                  onClick={() => { setLendSources([...lendSources, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]); setLendFirstManual(true); }}
+                  onClick={() => { setLendSources([{ ...lendSources[0], amount: '' }, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]); setLendFirstManual(true); }}
                   className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
                 >
                   + Add Envelope
