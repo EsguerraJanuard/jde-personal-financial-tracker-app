@@ -296,7 +296,11 @@ export default function TransactionForm({ wallets, allocations }: any) {
             
             <button 
               type="button" 
-              onClick={() => { setExpenseSources([{ ...expenseSources[0], amount: '' }, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]); setExpenseFirstManual(true); }}
+              onClick={() => { setExpenseSources(prev => {
+                  const updated = prev.map((s, i) => i === 0 && !expenseFirstManual ? { ...s, amount: '' } : s);
+                  return [...updated, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }];
+                });
+                setExpenseFirstManual(true); }}
               className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
             >
               + Add Envelope
@@ -373,7 +377,11 @@ export default function TransactionForm({ wallets, allocations }: any) {
                 
                 <button 
                   type="button" 
-                  onClick={() => { setLendSources([{ ...lendSources[0], amount: '' }, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }]); setLendFirstManual(true); }}
+                  onClick={() => { setLendSources(prev => {
+                    const updated = prev.map((s, i) => i === 0 && !lendFirstManual ? { ...s, amount: '' } : s);
+                    return [...updated, { id: Date.now(), allocation_id: allocations[0]?.id || '', amount: '' }];
+                  });
+                  setLendFirstManual(true); }}
                   className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 py-3 border border-neutral-800 rounded-xl border-dashed active:bg-neutral-900 transition-colors"
                 >
                   + Add Envelope
