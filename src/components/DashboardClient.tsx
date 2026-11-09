@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Eye, EyeOff, Plus, ChevronDown, ChevronUp, Settings, ArrowRight } from 'lucide-react';
 import TransactionDetailsModal from './TransactionDetailsModal';
+import EnvelopeDetailModal from './EnvelopeDetailModal';
 
 export default function DashboardClient({ 
   physicalWallets, 
@@ -18,6 +19,7 @@ export default function DashboardClient({
   const [show, setShow] = useState(true);
   const [showAllWallets, setShowAllWallets] = useState(false);
   const [selectedTx, setSelectedTx] = useState<any>(null);
+  const [selectedEnvelope, setSelectedEnvelope] = useState<{ id: string; name: string; balance?: number } | null>(null);
 
   const visibleAllocations = allocations
     .filter((a: any) => Number(a.target_percentage) > 0 || Number(a.balance) !== 0)
@@ -216,17 +218,19 @@ export default function DashboardClient({
             const bal = Number(alloc.balance);
             const isFullRow = alloc.name.toLowerCase().includes('school allowance');
             return (
-              <div 
-                key={alloc.id} 
-                className={`flex justify-between items-center bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 transition-colors ${isFullRow ? 'col-span-2' : ''}`}
+              <button
+                key={alloc.id}
+                type="button"
+                onClick={() => setSelectedEnvelope({ id: alloc.id, name: alloc.name, balance: bal })}
+                className={`flex justify-between items-center bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 transition-colors active:bg-neutral-800 cursor-pointer text-left ${isFullRow ? 'col-span-2' : ''}`}
               >
                 <div className="truncate pr-2">
                   <div className="text-sm font-medium text-neutral-200 truncate">{alloc.name}</div>
                 </div>
-                <div className={`text-base font-semibold ${bal < 0 ? 'text-red-400' : ''}`}>
+                <div className={`text-base font-semibold flex-shrink-0 ${bal < 0 ? 'text-red-400' : ''}`}>
                   {bal < 0 && show ? '-' : ''}₱{formatMoney(Math.abs(bal))}
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -296,6 +300,13 @@ export default function DashboardClient({
       </Link>
 
       <TransactionDetailsModal tx={selectedTx} onClose={() => setSelectedTx(null)} />
+      <EnvelopeDetailModal
+        allocationId={selectedEnvelope?.id ?? null}
+        allocationName={selectedEnvelope?.name}
+        initialBalance={selectedEnvelope?.balance}
+        showBalances={show}
+        onClose={() => setSelectedEnvelope(null)}
+      />
     </main>
   );
 }
