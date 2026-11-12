@@ -4,11 +4,34 @@ import TransactionForm from "@/components/TransactionForm";
 export const revalidate = 0;
 
 export default async function TransactionPage() {
-  const { data: wallets } = await supabase.from('wallet_balances').select('*').order('name');
-  const { data: allocations } = await supabase.from('allocation_balances').select('*').order('name');
+  const [
+    { data: wallets },
+    { data: allocations }
+  ] = await Promise.all([
+    supabase.from('wallet_balances').select('*').order('name'),
+    supabase.from('allocation_balances').select('*').order('name')
+  ]);
   
   const physicalWallets = wallets?.filter(w => w.group_type === 'Frequent') || [];
   
+  // Extract Utang Sakin (Receivable) wallets for debtor suggestions and autocomplete
+  const utangSakinWallets = wallets?.filter(w => w.group_type === 'Utang Sakin (Receivable)') || [];
+  
+  // Active debtors (currently have unpaid balance > 0), sorted by balance descending
+  const activeDebtors = utangSakinWallets
+    .filter(w => Number(w.balance) > 0)
+    .sort((a, b) => Number(b.balance) - Number(a.balance))
+    .map(w => ({
+      id: w.id,
+      name: w.name.replace(/\u200B/g, '').trim(),
+      balance: Number(w.balance)
+    }));
+
+  // All existing debtor contact names (including settled ones) for autocomplete
+  const allContacts = Array.from(
+    new Set(utangSakinWallets.map(w => w.name.replace(/\u200B/g, '').trim()))
+  ).filter(Boolean);
+
   const OFFSET_IDS = [
     '05da18bc-f387-4be5-ad54-c6d924a15751', 
     '70736863-3ec1-4630-9487-077deda5cfe0', 
@@ -21,7 +44,9 @@ export default async function TransactionPage() {
     <main className="flex-1 w-full max-w-md mx-auto min-h-screen flex flex-col bg-black">
       <TransactionForm 
         wallets={physicalWallets} 
-        allocations={visibleAllocations} 
+        allocations={visibleAllocations}
+        debtors={activeDebtors}
+        contacts={allContacts}
       />
     </main>
   );

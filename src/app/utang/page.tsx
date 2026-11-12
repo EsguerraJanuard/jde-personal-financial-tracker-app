@@ -4,9 +4,23 @@ import UtangClient from "@/components/UtangClient";
 export const revalidate = 0;
 
 export default async function UtangPage() {
-  // Query wallet_balances view to ensure the balance property is included in the payload
-  const { data: wallets } = await supabase.from('wallet_balances').select('*').order('name');
-  const { data: allocs } = await supabase.from('allocation_balances').select('*').order('name');
+  // Parallelize database queries for fast load times
+  const [
+    { data: wallets },
+    { data: allocs },
+    { data: allTxs }
+  ] = await Promise.all([
+    supabase.from('wallet_balances').select('*').order('name'),
+    supabase.from('allocation_balances').select('*').order('name'),
+    supabase
+      .from('transactions')
+      .select(`
+        id, type, parent_transaction_id, description, created_at,
+        wallet_ledger ( amount, wallets ( name, group_type ) ),
+        allocation_ledger ( amount, allocation_id )
+      `)
+      .order('created_at', { ascending: false })
+  ]);
 
   const OFFSET_IDS = [
     '05da18bc-f387-4be5-ad54-c6d924a15751', 
@@ -16,15 +30,6 @@ export default async function UtangPage() {
   
   const physicalWallets = wallets?.filter(w => w.group_type === 'Frequent') || [];
   const visibleAllocations = allocs?.filter(a => !OFFSET_IDS.includes(a.id)) || [];
-
-  const { data: allTxs } = await supabase
-    .from('transactions')
-    .select(`
-      id, type, parent_transaction_id, description, created_at,
-      wallet_ledger ( amount, wallets ( name, group_type ) ),
-      allocation_ledger ( amount, allocation_id )
-    `)
-    .order('created_at', { ascending: false });
 
   const activeReceivables: any[] = [];
   const activePayables: any[] = [];

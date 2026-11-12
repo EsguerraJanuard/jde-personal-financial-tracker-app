@@ -4,8 +4,13 @@ import SettingsClient from "@/components/SettingsClient";
 export const revalidate = 0;
 
 export default async function SettingsPage() {
-  const { data: allocations } = await supabase.from('allocations').select('*').order('name');
-  const { data: wallets } = await supabase.from('wallets').select('*').order('name');
+  const [
+    { data: allocations },
+    { data: wallets }
+  ] = await Promise.all([
+    supabase.from('allocations').select('*').order('name'),
+    supabase.from('wallets').select('*').order('name')
+  ]);
   
   // Filter out system offset allocations using rigid UUIDs instead of volatile strings
   const OFFSET_IDS = [

@@ -2,10 +2,15 @@
 
 import { useState, useRef } from 'react';
 import { processTransaction } from '@/app/transaction/actions';
-import { ArrowLeft, ChevronDown, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, AlertCircle, X, Zap } from 'lucide-react';
 import Link from 'next/link';
 
-export default function TransactionForm({ wallets, allocations }: any) {
+export default function TransactionForm({ 
+  wallets, 
+  allocations, 
+  debtors = [], 
+  contacts = [] 
+}: any) {
   const [tab, setTab] = useState<'INCOME' | 'EXPENSE' | 'LEND' | 'BORROW' | 'TRANSFER' | 'ADJUST'>('INCOME');
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -44,6 +49,123 @@ export default function TransactionForm({ wallets, allocations }: any) {
   const remainingLend = Number(amount) - lendSources.reduce((sum, s) => sum + Number(s.amount || 0), 0);
   const remainingExpense = Number(amount) - expenseSources.reduce((sum, s) => sum + Number(s.amount || 0), 0);
 
+  // Auto-select sufficient wallet and envelope(s) for a given lend amount
+  const autoSelectForLend = (targetAmount: number) => {
+    if (!targetAmount || targetAmount <= 0) return;
+
+    // 1. Wallet selection: Pick wallet with sufficient funds (or highest balance)
+    const currentW = wallets.find((w: any) => w.id === walletId);
+    let chosenWalletId = walletId;
+    if (!currentW || Number(currentW.balance || 0) < targetAmount) {
+      const sufficientWallets = wallets
+        .filter((w: any) => Number(w.balance || 0) >= targetAmount)
+        .sort((a: any, b: any) => Number(b.balance || 0) - Number(a.balance || 0));
+
+      if (sufficientWallets.length > 0) {
+        chosenWalletId = sufficientWallets[0].id;
+        setWalletId(chosenWalletId);
+      } else {
+        const highestW = [...wallets].sort((a: any, b: any) => Number(b.balance || 0) - Number(a.balance || 0))[0];
+        if (highestW) {
+          chosenWalletId = highestW.id;
+          setWalletId(chosenWalletId);
+        }
+      }
+    }
+
+    // 2. Envelope selection:
+    // First check if any single envelope has balance >= targetAmount
+    const sufficientEnvelopes = allocations
+      .filter((a: any) => Number(a.balance || 0) >= targetAmount)
+      .sort((a: any, b: any) => Number(b.balance || 0) - Number(a.balance || 0));
+
+    if (sufficientEnvelopes.length > 0) {
+      const currentEnvSufficient = sufficientEnvelopes.find((a: any) => a.id === lendSources[0]?.allocation_id);
+      const chosenEnv = currentEnvSufficient || sufficientEnvelopes[0];
+
+      setLendSources([{
+        id: Date.now(),
+        allocation_id: chosenEnv.id,
+        amount: targetAmount.toString()
+      }]);
+      setLendFirstManual(false);
+    } else {
+      // Greedily distribute across positive envelopes sorted descending
+      const positiveEnvelopes = allocations
+        .filter((a: any) => Number(a.balance || 0) > 0)
+        .sort((a: any, b: any) => Number(b.balance || 0) - Number(a.balance || 0));
+
+      let remaining = targetAmount;
+      const newSources: any[] = [];
+      for (const env of positiveEnvelopes) {
+        if (remaining <= 0) break;
+        const envBal = Number(env.balance || 0);
+        const take = Math.min(envBal, remaining);
+        newSources.push({
+          id: Date.now() + newSources.length,
+          allocation_id: env.id,
+          amount: Number(take.toFixed(2)).toString()
+        });
+        remaining = Number((remaining - take).toFixed(2));
+      }
+
+      if (newSources.length > 0) {
+        if (remaining > 0) {
+          const lastIdx = newSources.length - 1;
+          const currentAllocated = Number(newSources[lastIdx].amount);
+          newSources[lastIdx].amount = Number((currentAllocated + remaining).toFixed(2)).toString();
+        }
+        setLendSources(newSources);
+        setLendFirstManual(true);
+      } else {
+        setLendSources([{
+          id: Date.now(),
+          allocation_id: allocations[0]?.id || '',
+          amount: targetAmount.toString()
+        }]);
+        setLendFirstManual(false);
+      }
+    }
+  };
+
+  // Max amount handler
+  const handleMaxAmount = () => {
+    let max = 0;
+    if (tab === 'EXPENSE') {
+      const w = wallets.find((w: any) => w.id === walletId);
+      max = Math.max(0, Number(w?.balance || 0));
+    } else if (tab === 'LEND') {
+      const sortedW = [...wallets].sort((a: any, b: any) => Number(b.balance || 0) - Number(a.balance || 0));
+      const bestW = sortedW[0];
+      max = Math.max(0, Number(bestW?.balance || 0));
+      if (bestW && bestW.id !== walletId) {
+        setWalletId(bestW.id);
+      }
+    } else if (tab === 'TRANSFER') {
+      if (transferType === 'WALLET') {
+        const w = wallets.find((w: any) => w.id === walletId);
+        max = Math.max(0, Number(w?.balance || 0));
+      } else {
+        const a = allocations.find((a: any) => a.id === allocationId);
+        max = Math.max(0, Number(a?.balance || 0));
+      }
+    } else if (tab === 'ADJUST') {
+      const w = wallets.find((w: any) => w.id === walletId);
+      max = Math.max(0, Number(w?.balance || 0));
+    }
+
+    if (max > 0) {
+      const val = max.toString();
+      setAmount(val);
+      setErrors(prev => ({ ...prev, amount: '' }));
+
+      if (tab === 'LEND') {
+        autoSelectForLend(max);
+      } else if (tab === 'EXPENSE' && expenseSources.length === 1 && !expenseFirstManual) {
+        setExpenseSources([{ ...expenseSources[0], amount: val }]);
+      }
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,6 +282,9 @@ export default function TransactionForm({ wallets, allocations }: any) {
               setErrors({});
               setExpenseFirstManual(false);
               setLendFirstManual(false);
+              if (t === 'LEND' && Number(amount) > 0) {
+                autoSelectForLend(Number(amount));
+              }
             }}
             className={`py-2.5 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-colors ${tab === t ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-500'}`}
           >
@@ -170,7 +295,7 @@ export default function TransactionForm({ wallets, allocations }: any) {
 
       <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-6 flex-1" noValidate>
         
-        {/* AMOUNT */}
+        {/* AMOUNT WITH MAX BUTTON */}
         <div className="flex flex-col gap-2" ref={amountRef}>
           <div className="flex justify-between items-end">
             <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">
@@ -182,31 +307,57 @@ export default function TransactionForm({ wallets, allocations }: any) {
             <span className="absolute left-5 top-1/2 -translate-y-1/2 text-xl font-medium text-neutral-400">₱</span>
             <input 
               type="number" step="0.01"
-              value={amount} onChange={e => {
+              value={amount} 
+              onChange={e => {
                 const val = e.target.value;
                 setAmount(val);
                 setErrors(prev => ({...prev, amount: ''}));
-                // Auto-mirror into the first expense row if user hasn't split yet
+                const numVal = Number(val);
+
+                // Auto-mirror into first expense row if user hasn't split
                 if (tab === 'EXPENSE' && expenseSources.length === 1 && !expenseFirstManual) {
                   setExpenseSources([{ ...expenseSources[0], amount: val }]);
                 }
-                // Auto-mirror into the first lend row if user hasn't split yet
-                if (tab === 'LEND' && lendSources.length === 1 && !lendFirstManual) {
-                  setLendSources([{ ...lendSources[0], amount: val }]);
+
+                // In LEND: auto-select sufficient wallet & envelopes
+                if (tab === 'LEND') {
+                  if (numVal > 0 && !lendFirstManual) {
+                    autoSelectForLend(numVal);
+                  } else if (lendSources.length === 1 && !lendFirstManual) {
+                    setLendSources([{ ...lendSources[0], amount: val }]);
+                  }
                 }
               }}
-              className={`w-full bg-neutral-900 rounded-2xl pl-12 pr-4 py-5 text-3xl font-semibold outline-none transition-shadow ${errors.amount ? 'ring-1 ring-red-500/50' : 'focus:ring-2 focus:ring-neutral-700'}`}
+              className={`w-full bg-neutral-900 rounded-2xl pl-12 pr-20 py-5 text-3xl font-semibold outline-none transition-shadow ${errors.amount ? 'ring-1 ring-red-500/50' : 'focus:ring-2 focus:ring-neutral-700'}`}
               placeholder="0"
             />
+            {tab !== 'INCOME' && tab !== 'BORROW' && (
+              <button
+                type="button"
+                onClick={handleMaxAmount}
+                className="absolute right-4 top-1/2 -translate-y-1/2 px-3 py-1.5 text-[11px] font-bold text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 active:scale-95 rounded-xl uppercase tracking-wider transition-all"
+              >
+                MAX
+              </button>
+            )}
           </div>
         </div>
 
         {/* FROM / TO WALLET — hidden for BORROW & TRANSFER & ADJUST */}
         {tab !== 'BORROW' && tab !== 'TRANSFER' && tab !== 'ADJUST' && (
           <div className="flex flex-col gap-2">
-            <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">
-              {tab === 'INCOME' ? 'To Wallet' : 'From Wallet'}
-            </label>
+            <div className="flex justify-between items-end">
+              <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">
+                {tab === 'INCOME' ? 'To Wallet' : 'From Wallet'}
+              </label>
+              {tab === 'LEND' && Number(amount) > 0 && (
+                <span className="text-[10px] text-neutral-400 font-medium">
+                  {wallets.find((w: any) => w.id === walletId && Number(w.balance || 0) >= Number(amount))
+                    ? '✓ Sufficient funds'
+                    : '⚠️ Low balance'}
+                </span>
+              )}
+            </div>
             <Select value={walletId} onChange={(e: any) => setWalletId(e.target.value)}>
               {wallets.map((w: any) => <option key={w.id} value={w.id}>{w.name} (₱{Number(w.balance || 0).toLocaleString()})</option>)}
             </Select>
@@ -316,17 +467,95 @@ export default function TransactionForm({ wallets, allocations }: any) {
                 <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">For (Person)</label>
                 {errors.personName && <span className="text-[10px] text-red-400 font-medium flex items-center gap-1"><AlertCircle size={10} /> {errors.personName}</span>}
               </div>
+
+              {/* Current Active Debtors (May Utang) Quick Chips */}
+              {debtors.length > 0 && (
+                <div className="flex flex-col gap-1.5 mb-1">
+                  <span className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">
+                    Current Debtors (May Utang):
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {debtors.map((d: any) => {
+                      const isSelected = personName.trim().toLowerCase() === d.name.toLowerCase();
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => {
+                            setPersonName(d.name);
+                            setErrors(prev => ({ ...prev, personName: '' }));
+                          }}
+                          className={`text-xs px-3 py-1.5 rounded-xl border transition-all active:scale-95 flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-white text-black border-white font-bold shadow-md'
+                              : 'bg-neutral-900 text-neutral-300 border-neutral-800 hover:border-neutral-700 font-medium'
+                          }`}
+                        >
+                          <span>{d.name}</span>
+                          <span className={`text-[10px] ${isSelected ? 'text-neutral-700' : 'text-neutral-500'}`}>
+                            ₱{d.balance.toLocaleString()}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <input 
                 type="text" 
-                value={personName} onChange={e => { setPersonName(e.target.value); setErrors(prev => ({...prev, personName: ''})); }}
+                value={personName} 
+                onChange={e => { setPersonName(e.target.value); setErrors(prev => ({...prev, personName: ''})); }}
                 className={`w-full bg-neutral-900 rounded-xl px-5 py-4 text-sm font-medium outline-none transition-shadow ${errors.personName ? 'ring-1 ring-red-500/50' : 'focus:ring-2 focus:ring-neutral-700'}`}
-                placeholder="e.g. Kuya ER"
+                placeholder="e.g. Papa, Kuya ER, etc."
               />
+
+              {/* Matching Contacts Suggestions while typing */}
+              {personName.trim().length > 0 && (
+                (() => {
+                  const query = personName.trim().toLowerCase();
+                  const matches = contacts.filter((c: string) => 
+                    c.toLowerCase().includes(query) && c.toLowerCase() !== query
+                  );
+                  if (matches.length === 0) return null;
+                  return (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <span className="text-[10px] text-neutral-500 font-medium">Suggestions:</span>
+                      {matches.slice(0, 5).map((match: string) => (
+                        <button
+                          key={match}
+                          type="button"
+                          onClick={() => {
+                            setPersonName(match);
+                            setErrors(prev => ({ ...prev, personName: '' }));
+                          }}
+                          className="text-[11px] px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white transition-colors"
+                        >
+                          {match}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()
+              )}
             </div>
 
             <div className="flex flex-col gap-2" ref={lendSourceRef}>
               <div className="flex justify-between items-end">
-                 <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">Source Envelopes</label>
+                 <div className="flex items-center gap-2">
+                   <label className="text-[11px] text-neutral-500 uppercase tracking-widest font-semibold">Source Envelopes</label>
+                   {Number(amount) > 0 && (
+                     <button
+                       type="button"
+                       onClick={() => autoSelectForLend(Number(amount))}
+                       className="text-[10px] text-neutral-400 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2 py-0.5 rounded-md font-semibold transition-colors flex items-center gap-1 active:scale-95"
+                       title="Auto-select envelopes and wallet with sufficient balance"
+                     >
+                       <Zap size={10} className="text-yellow-400" />
+                       <span>Auto-select</span>
+                     </button>
+                   )}
+                 </div>
                  {errors.lendSource ? (
                     <span className="text-[10px] text-red-400 font-medium flex items-center gap-1"><AlertCircle size={10} /> {errors.lendSource}</span>
                  ) : (

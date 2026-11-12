@@ -25,27 +25,30 @@ export interface EnvelopeDetail {
 }
 
 export async function getEnvelopeDetail(allocationId: string): Promise<EnvelopeDetail | null> {
-  // 1. Fetch the envelope balance and info
-  const { data: envelope, error: envErr } = await supabase
-    .from('allocation_balances')
-    .select('id, name, target_percentage, balance')
-    .eq('id', allocationId)
-    .single();
+  // 1. Fetch envelope balance and transactions in parallel
+  const [
+    { data: envelope, error: envErr },
+    { data: allTxs, error: txErr }
+  ] = await Promise.all([
+    supabase
+      .from('allocation_balances')
+      .select('id, name, target_percentage, balance')
+      .eq('id', allocationId)
+      .single(),
+    supabase
+      .from('transactions')
+      .select(`
+        id, type, parent_transaction_id, description, created_at,
+        wallet_ledger ( amount, wallet_id, wallets ( name, group_type ) ),
+        allocation_ledger ( amount, allocation_id )
+      `)
+      .order('created_at', { ascending: false })
+  ]);
 
   if (envErr || !envelope) return null;
 
   const currentBalance = Number(envelope.balance || 0);
   const targetPercentage = Number(envelope.target_percentage || 0);
-
-  // 2. Fetch all transactions with wallet and allocation ledgers
-  const { data: allTxs, error: txErr } = await supabase
-    .from('transactions')
-    .select(`
-      id, type, parent_transaction_id, description, created_at,
-      wallet_ledger ( amount, wallet_id, wallets ( name, group_type ) ),
-      allocation_ledger ( amount, allocation_id )
-    `)
-    .order('created_at', { ascending: false });
 
   if (txErr || !allTxs) {
     return {
